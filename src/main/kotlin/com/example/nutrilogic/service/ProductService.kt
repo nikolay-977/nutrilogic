@@ -1,7 +1,6 @@
 package com.example.nutrilogic.service
 
 import com.example.nutrilogic.model.Product
-import com.example.nutrilogic.model.NutrientValue
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.springframework.boot.context.event.ApplicationReadyEvent
@@ -33,34 +32,13 @@ class ProductService {
         println("✅ Загружено ${products.size} продуктов")
     }
 
-    /**
-     * Возвращает единицу измерения для данного нутриента (по первому найденному продукту).
-     */
-    fun getUnitForNutrient(nutrientName: String): String? {
-        val normalized = nutrientName.trim().lowercase()
-        for (product in products) {
-            val unit = product.getNutrientUnit(nutrientName)
-            if (unit != null) return unit
-        }
-        return null
-    }
-
-    /**
-     * Возвращает все продукты, отсортированные по эффективности (содержание нутриента / ккал).
-     * @param nutrientQuery название нутриента
-     * @param category опциональная категория
-     * @return список пар (продукт, эффективность)
-     */
     fun recommendProductsAll(nutrientQuery: String, category: String? = null): List<Pair<Product, Double>> {
         val normalizedQuery = nutrientQuery.trim().lowercase()
         if (products.isEmpty()) return emptyList()
 
-        // Находим ключ нутриента (точное совпадение или содержащее подстроку)
         var targetKey: String? = null
         for (product in products) {
-            targetKey = product.nutrients.keys.find {
-                it.lowercase() == normalizedQuery || it.lowercase().contains(normalizedQuery)
-            }
+            targetKey = product.nutrients.keys.find { it.lowercase() == normalizedQuery || it.lowercase().contains(normalizedQuery) }
             if (targetKey != null) break
         }
         if (targetKey == null) return emptyList()
@@ -76,9 +54,7 @@ class ProductService {
         return result.sortedByDescending { it.second }
     }
 
-    fun getAllCategoryNames(): List<String> {
-        return products.map { it.category }.distinct().sorted()
-    }
+    fun getAllCategoryNames(): List<String> = products.map { it.category }.distinct().sorted()
 
     fun searchProducts(nameQuery: String?, category: String?): MutableList<Product> {
         var result = products
@@ -92,20 +68,17 @@ class ProductService {
         return result.sortedBy { it.name }.toMutableList()
     }
 
-    fun getAllNutrientNames(): List<String> {
-        val set = mutableSetOf<String>()
+    fun getAllNutrientNames(): List<String> = products.flatMap { it.nutrients.keys }.distinct().sorted()
+
+    fun getUnitForNutrient(nutrientName: String): String? {
+        val normalized = nutrientName.trim().lowercase()
         for (product in products) {
-            set.addAll(product.nutrients.keys)
+            val entry = product.nutrients.entries.find { it.key.lowercase() == normalized || it.key.lowercase().contains(normalized) }
+            if (entry != null && entry.value.unit.isNotBlank()) return entry.value.unit
         }
-        return set.sorted()
+        return null
     }
 
-    fun getProductCountForNutrient(nutrientName: String): Int {
-        val normalized = nutrientName.trim().lowercase()
-        return products.count { product ->
-            product.nutrients.keys.any { key ->
-                key.lowercase() == normalized || key.lowercase().contains(normalized)
-            }
-        }
-    }
+    // Для предпочтений: получение продукта по имени
+    fun findProductByName(name: String): Product? = products.find { it.name == name }
 }

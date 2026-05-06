@@ -1,18 +1,16 @@
 package com.example.nutrilogic.controller
 
 import com.example.nutrilogic.model.Product
+import com.example.nutrilogic.model.UserProfile
 import com.example.nutrilogic.service.ProductService
 import jakarta.servlet.http.HttpSession
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.web.bind.annotation.*
-import kotlin.math.max
-import kotlin.math.min
 
 @Controller
 class RecommendController(private val productService: ProductService) {
 
-    // ---------- DTOs ----------
     data class RequirementDto(
         val nutrientName: String,
         val targetNorm: Double,
@@ -30,15 +28,6 @@ class RecommendController(private val productService: ProductService) {
         val isCapped: Boolean = false,
         val caloriesPer100g: Double = 0.0,
         val nutrientValuePer100g: Double = 0.0
-    )
-
-    internal data class Candidate(
-        val product: Product,
-        val effectiveness: Double,
-        val nutrientValue: Double,
-        val requiredGrams: Double,
-        val caloriesPerServing: Double,
-        val category: String
     )
 
     data class MealItem(
@@ -67,7 +56,15 @@ class RecommendController(private val productService: ProductService) {
         fun copy(id: Int) = MealSetDto(id, items, totalCalories, coverages)
     }
 
-    // ---------- Основные маршруты ----------
+    private fun getProfile(session: HttpSession): UserProfile {
+        var profile = session.getAttribute("userProfile") as? UserProfile
+        if (profile == null) {
+            profile = UserProfile()
+            session.setAttribute("userProfile", profile)
+        }
+        return profile
+    }
+
     @GetMapping("/")
     fun home(): String = "redirect:/recommend"
 
@@ -82,8 +79,11 @@ class RecommendController(private val productService: ProductService) {
         @RequestParam(name = "sort", required = false, defaultValue = "efficiency") sort: String,
         @RequestParam(name = "page", defaultValue = "0") page: Int,
         @RequestParam(name = "size", defaultValue = "10") size: Int,
-        model: Model
+        model: Model,
+        session: HttpSession
     ): String {
+        val profile = getProfile(session)
+
         val nutrientList = productService.getAllNutrientNames()
         val categoryList = productService.getAllCategoryNames()
         model.addAttribute("nutrientList", nutrientList)
@@ -95,6 +95,7 @@ class RecommendController(private val productService: ProductService) {
         model.addAttribute("maxNorm", maxNorm)
         model.addAttribute("maxGramsPerProduct", maxGramsPerProduct)
         model.addAttribute("selectedSort", sort)
+        model.addAttribute("favoriteProducts", profile.favoriteProducts)
 
         var unit: String? = null
         if (nutrientName.isNotBlank()) {
@@ -112,7 +113,9 @@ class RecommendController(private val productService: ProductService) {
         }
 
         val allRecommendationsRaw = productService.recommendProductsAll(nutrientName, if (category.isBlank()) null else category)
-        val allRecommendations = allRecommendationsRaw.mapNotNull { (product, effectiveness) ->
+        val filteredRaw = allRecommendationsRaw.filter { (product, _) -> !profile.bannedProducts.contains(product.name) }
+
+        val allRecommendations = filteredRaw.mapNotNull { (product, effectiveness) ->
             val nutrientValue = product.getNutrientValue(nutrientName) ?: return@mapNotNull null
             if (nutrientValue <= 0.0) return@mapNotNull null
 
@@ -149,7 +152,6 @@ class RecommendController(private val productService: ProductService) {
             )
         }
 
-        // Сортировка
         val sortedRecommendations = when (sort) {
             "coverage" -> allRecommendations.sortedByDescending { it.coveredPercent ?: 0.0 }
             else -> allRecommendations.sortedByDescending { it.effectiveness }
@@ -169,22 +171,92 @@ class RecommendController(private val productService: ProductService) {
         return "index"
     }
 
+    @PostMapping("/recommend/add-favorite")
+    fun addFavorite(
+        @RequestParam productName: String,
+        @RequestHeader(value = "referer", required = false) referer: String?,
+        session: HttpSession
+    ): String {
+        val profile = getProfile(session)
+        profile.favoriteProducts.add(productName)
+        session.setAttribute("userProfile", profile)
+        return "redirect:${referer ?: "/recommend"}"
+    }
+
+    @PostMapping("/recommend/remove-favorite")
+    fun removeFavorite(
+        @RequestParam productName: String,
+        @RequestHeader(value = "referer", required = false) referer: String?,
+        session: HttpSession
+    ): String {
+        val profile = getProfile(session)
+        profile.favoriteProducts.remove(productName)
+        session.setAttribute("userProfile", profile)
+        return "redirect:${referer ?: "/recommend"}"
+    }
+
+    @PostMapping("/recommend/add-banned")
+    fun addBanned(
+        @RequestParam productName: String,
+        @RequestHeader(value = "referer", required = false) referer: String?,
+        session: HttpSession
+    ): String {
+        val profile = getProfile(session)
+        profile.bannedProducts.add(productName)
+        profile.favoriteProducts.remove(productName)
+        session.setAttribute("userProfile", profile)
+        return "redirect:${referer ?: "/recommend"}"
+    }
+
+    @PostMapping("/recommend/remove-banned")
+    fun removeBanned(
+        @RequestParam productName: String,
+        @RequestHeader(value = "referer", required = false) referer: String?,
+        session: HttpSession
+    ): String {
+        val profile = getProfile(session)
+        profile.bannedProducts.remove(productName)
+        session.setAttribute("userProfile", profile)
+        return "redirect:${referer ?: "/recommend"}"
+    }
+
     @GetMapping("/search")
     fun searchProducts(
         @RequestParam(name = "name", required = false, defaultValue = "") name: String,
         @RequestParam(name = "category", required = false, defaultValue = "") category: String,
-        model: Model
+        @RequestParam(name = "sort", required = false, defaultValue = "efficiency") sort: String,
+        model: Model,
+        session: HttpSession
     ): String {
-        val products = productService.searchProducts(name, if (category.isBlank()) null else category)
+        val profile = getProfile(session)
+        var allProducts = productService.searchProducts(name, if (category.isBlank()) null else category)
+        allProducts = allProducts.filter { !profile.bannedProducts.contains(it.name) }.toMutableList()
+
+        data class ProductWithEfficiency(val product: Product, val efficiency: Double)
+
+        val productsWithEfficiency = allProducts.map { product ->
+            val protein = product.getNutrientValue("Белки") ?: 0.0
+            val calories = product.getCalories() ?: 1.0
+            val efficiency = if (protein > 0 && calories > 0) protein / calories else 0.0
+            ProductWithEfficiency(product, efficiency)
+        }
+
+        val sortedProducts = when (sort) {
+            "name" -> productsWithEfficiency.sortedBy { it.product.name }
+            else -> productsWithEfficiency.sortedByDescending { it.efficiency }
+        }
+
         val categoryList = productService.getAllCategoryNames()
         model.addAttribute("categoryList", categoryList)
         model.addAttribute("selectedCategory", category)
         model.addAttribute("searchName", name)
-        model.addAttribute("products", products)
+        model.addAttribute("selectedSort", sort)
+        model.addAttribute("productsWithEfficiency", sortedProducts)
+        model.addAttribute("totalProducts", sortedProducts.size)   // добавляем
+        model.addAttribute("favoriteProducts", profile.favoriteProducts)
         return "search"
     }
 
-    // ---------- Планировщик меню ----------
     @GetMapping("/meal-planner")
     fun mealPlannerPage(model: Model, session: HttpSession): String {
         model.addAttribute("nutrientList", productService.getAllNutrientNames())
@@ -230,7 +302,8 @@ class RecommendController(private val productService: ProductService) {
             return "redirect:/meal-planner?error=no_requirements"
         }
         val setsCount = minOf(maxSets, 10)
-        val mealSets = generateBalancedSets(requirements, setsCount)
+        val profile = getProfile(session)
+        val mealSets = generateBalancedSetsFast(requirements, setsCount, profile)
         model.addAttribute("mealSets", mealSets)
         model.addAttribute("requirements", requirements)
         model.addAttribute("nutrientList", productService.getAllNutrientNames())
@@ -238,133 +311,118 @@ class RecommendController(private val productService: ProductService) {
         return "meal-planner"
     }
 
-    // ---------- Логика генерации наборов ----------
-    private fun generateBalancedSets(requirements: List<RequirementDto>, setsCount: Int): List<MealSetDto> {
-        if (requirements.isEmpty()) return emptyList()
-        val candidates = mutableListOf<MealSetDto>()
-        val maxAttempts = 800
-
-        for (attempt in 0 until maxAttempts) {
-            val shuffledReqs = requirements.shuffled()
-            val set = generateSequentialSet(shuffledReqs, mutableSetOf())
-            if (set != null) {
-                val key = set.items.map { it.product.name }.sorted().joinToString()
-                if (candidates.none { it.items.map { p -> p.product.name }.sorted().joinToString() == key }) {
-                    if (set.coverages.all { cov -> cov.totalCovered >= cov.targetNorm * 0.1 }) {
-                        candidates.add(set)
-                    }
-                }
-            }
-            if (candidates.size >= setsCount * 5) break
-        }
-
-        if (candidates.isEmpty()) return emptyList()
-
-        fun score(set: MealSetDto): Double {
-            var penalty = 0.0
-            for (cov in set.coverages) {
-                if (cov.minNorm > 0 && cov.totalCovered < cov.minNorm) {
-                    penalty += (cov.minNorm - cov.totalCovered) * 2.0
-                }
-                if (cov.maxNorm > 0 && cov.totalCovered > cov.maxNorm) {
-                    penalty += (cov.totalCovered - cov.maxNorm) * 1.5
-                }
-                penalty += kotlin.math.abs(cov.totalCovered - cov.targetNorm) * 0.1
-            }
-            return penalty
-        }
-
-        val bestCandidates = candidates.sortedBy { score(it) }.take(setsCount)
-        return bestCandidates.mapIndexed { idx, set -> set.copy(id = idx + 1) }
-    }
-
-    private fun generateSequentialSet(
+    // ---------- НОВЫЙ БЫСТРЫЙ АЛГОРИТМ ГЕНЕРАЦИИ НАБОРОВ ----------
+    private fun generateBalancedSetsFast(
         requirements: List<RequirementDto>,
-        usedProductsGlobal: MutableSet<Product>
-    ): MealSetDto? {
-        val remainingNorms = requirements.map { it.targetNorm }.toDoubleArray()
-        val selectedItems = mutableListOf<MealItem>()
-        val usedProductsInSet = mutableSetOf<Product>()
+        setsCount: Int,
+        profile: UserProfile
+    ): List<MealSetDto> {
+        var availableProducts = productService.searchProducts("", null)
+            .filter { !profile.bannedProducts.contains(it.name) }
+            .toMutableList()
+        val resultSets = mutableListOf<MealSetDto>()
 
-        for ((idx, req) in requirements.withIndex()) {
-            var remaining = remainingNorms[idx]
-            if (remaining <= 0.0) continue
+        for (setIndex in 0 until setsCount) {
+            val setItems = mutableListOf<MealItem>()
+            val usedProductsInSet = mutableSetOf<Product>()
+            val usedCategoriesInSet = mutableSetOf<String>()  // глобальные категории, использованные в наборе
+            var setValid = true
 
-            val itemsForReq = mutableListOf<MealItem>()
-            while (remaining > 0.0) {
-                val candidates = productService.recommendProductsAll(req.nutrientName, null)
-                    .mapNotNull { (product, _) ->
-                        if (product in usedProductsGlobal || product in usedProductsInSet) return@mapNotNull null
-                        val valuePer100g = product.getNutrientValue(req.nutrientName) ?: return@mapNotNull null
-                        if (valuePer100g <= 0.0) return@mapNotNull null
-                        val requiredGramsRaw = (remaining / valuePer100g) * 100.0
-                        val actualGrams = minOf(requiredGramsRaw, req.maxGramsPerProduct)
-                        if (actualGrams <= 0.0) return@mapNotNull null
-                        val contribution = valuePer100g * (actualGrams / 100.0)
-                        if (contribution < 0.01) return@mapNotNull null
-                        val effectiveness = valuePer100g / (product.getCalories() ?: 1.0)
-                        Candidate(
-                            product = product,
-                            effectiveness = effectiveness,
-                            nutrientValue = valuePer100g,
-                            requiredGrams = actualGrams,
-                            caloriesPerServing = product.getCalories() ?: 0.0,
-                            category = product.category
-                        )
+            // Проходим требования в обратном порядке
+            for (req in requirements.reversed()) {
+                var remaining = req.targetNorm
+                val maxAllowed = if (req.maxNorm > 0) req.maxNorm else Double.MAX_VALUE
+                var remainingSpace = maxAllowed
+                if (remaining <= 0) continue
+
+                var attempts = 0
+                while (remaining > 0 && remainingSpace > 0 && attempts < 100) {
+                    attempts++
+                    val desiredIncrement = minOf(remaining, remainingSpace)
+                    if (desiredIncrement <= 0) break
+
+                    // Сначала ищем продукты из категорий, ещё не использованных в наборе
+                    var best = availableProducts
+                        .filter { it !in usedProductsInSet && it.category !in usedCategoriesInSet }
+                        .mapNotNull { product ->
+                            val valuePer100g = product.getNutrientValue(req.nutrientName) ?: return@mapNotNull null
+                            if (valuePer100g <= 0.0) return@mapNotNull null
+                            val effectiveness = valuePer100g / (product.getCalories() ?: 1.0)
+                            Triple(product, valuePer100g, effectiveness)
+                        }
+                        .maxByOrNull { it.third }
+
+                    // Если нет – разрешаем любые (даже из уже использованных категорий)
+                    if (best == null) {
+                        best = availableProducts
+                            .filter { it !in usedProductsInSet }
+                            .mapNotNull { product ->
+                                val valuePer100g = product.getNutrientValue(req.nutrientName) ?: return@mapNotNull null
+                                if (valuePer100g <= 0.0) return@mapNotNull null
+                                val effectiveness = valuePer100g / (product.getCalories() ?: 1.0)
+                                Triple(product, valuePer100g, effectiveness)
+                            }
+                            .maxByOrNull { it.third }
                     }
-                    .distinctBy { it.product.name }
-                    .sortedByDescending { it.effectiveness }
 
-                val best = candidates.firstOrNull() ?: break
-                itemsForReq.add(
-                    MealItem(
-                        product = best.product,
-                        requiredGrams = best.requiredGrams,
+                    if (best == null) {
+                        setValid = false
+                        break
+                    }
+                    val (product, valuePer100g) = best
+                    val requiredGramsRaw = (desiredIncrement / valuePer100g) * 100.0
+                    val actualGrams = minOf(requiredGramsRaw, req.maxGramsPerProduct)
+                    var contribution = valuePer100g * (actualGrams / 100.0)
+                    if (contribution > desiredIncrement) contribution = desiredIncrement
+                    if (contribution <= 0.0) continue
+
+                    setItems.add(
+                        MealItem(
+                            product = product,
+                            requiredGrams = actualGrams,
+                            nutrientName = req.nutrientName,
+                            contributesNorm = contribution,
+                            unit = req.unit
+                        )
+                    )
+                    usedProductsInSet.add(product)
+                    usedCategoriesInSet.add(product.category) // запоминаем категорию для всего набора
+                    remaining -= contribution
+                    remainingSpace -= contribution
+                }
+                if (!setValid) break
+            }
+
+            if (setValid && setItems.isNotEmpty()) {
+                // Фильтруем только продукты с положительным вкладом (оставляем все)
+                val filteredItems = setItems.filter { it.contributesNorm > 0.0 }
+                if (filteredItems.isEmpty()) break
+
+                val coverages = requirements.map { req ->
+                    val totalCovered = filteredItems.sumOf { item ->
+                        val valuePer100g = item.product.getNutrientValue(req.nutrientName) ?: 0.0
+                        valuePer100g * (item.requiredGrams / 100.0)
+                    }
+                    RequirementCoverage(
                         nutrientName = req.nutrientName,
-                        contributesNorm = best.nutrientValue * (best.requiredGrams / 100.0),
+                        totalCovered = totalCovered,
+                        targetNorm = req.targetNorm,
+                        minNorm = req.minNorm,
+                        maxNorm = req.maxNorm,
                         unit = req.unit
                     )
-                )
-                usedProductsInSet.add(best.product)
-                remaining -= (best.nutrientValue * (best.requiredGrams / 100.0))
-            }
-            if (itemsForReq.isEmpty() && remaining > 0.0) return null
-            selectedItems.addAll(itemsForReq)
-
-            for (item in itemsForReq) {
-                for (j in requirements.indices) {
-                    if (remainingNorms[j] <= 0.0) continue
-                    val otherNutrient = requirements[j].nutrientName
-                    val otherValue = item.product.getNutrientValue(otherNutrient) ?: continue
-                    if (otherValue > 0.0) {
-                        val contributed = otherValue * (item.requiredGrams / 100.0)
-                        remainingNorms[j] = max(0.0, remainingNorms[j] - contributed)
-                    }
                 }
+                val totalCalories = filteredItems.sumOf {
+                    (it.product.getCalories() ?: 0.0) * (it.requiredGrams / 100.0)
+                }
+                resultSets.add(MealSetDto(resultSets.size + 1, filteredItems, totalCalories, coverages))
+                availableProducts.removeAll(usedProductsInSet)
+            } else {
+                break
             }
         }
-
-        val filteredItems = selectedItems.filter { it.contributesNorm >= 0.01 && it.requiredGrams >= 0.1 }
-
-        val coverages = requirements.map { req ->
-            val totalCovered = filteredItems.sumOf { item ->
-                val valuePer100g = item.product.getNutrientValue(req.nutrientName) ?: 0.0
-                valuePer100g * (item.requiredGrams / 100.0)
-            }
-            RequirementCoverage(
-                nutrientName = req.nutrientName,
-                totalCovered = totalCovered,
-                targetNorm = req.targetNorm,
-                minNorm = req.minNorm,
-                maxNorm = req.maxNorm,
-                unit = req.unit
-            )
-        }
-
-        val totalCalories = filteredItems.sumOf {
-            (it.product.getCalories() ?: 0.0) * (it.requiredGrams / 100.0)
-        }
-
-        return if (filteredItems.isNotEmpty()) MealSetDto(0, filteredItems, totalCalories, coverages) else null
+        return resultSets
     }
+
+
 }

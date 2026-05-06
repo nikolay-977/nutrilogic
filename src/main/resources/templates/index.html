@@ -13,15 +13,12 @@
 </div>
 
 <ul class="nav nav-tabs justify-content-center mb-4">
-    <li class="nav-item">
-        <a class="nav-link" href="/search">🔍 Поиск продуктов</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link active" href="/recommend">📊 Рекомендации по нутриентам</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link" href="/meal-planner">🍽️ Планировщик меню</a>
-    </li>
+    <li class="nav-item"><a class="nav-link" href="/dashboard">📊 Дашборд</a></li>
+    <li class="nav-item"><a class="nav-link" href="/diary">📓 Дневник</a></li>
+    <li class="nav-item"><a class="nav-link" href="/search">🔍 Поиск</a></li>
+    <li class="nav-item"><a class="nav-link active" href="/recommend">📊 Рекомендации</a></li>
+    <li class="nav-item"><a class="nav-link" href="/meal-planner">🍽️ Планировщик</a></li>
+    <li class="nav-item"><a class="nav-link" href="/profile">👤 Профиль</a></li>
 </ul>
 
 <div class="row justify-content-center">
@@ -67,18 +64,13 @@
                 <div class="form-text">Если рассчитанная порция больше этого значения, она будет уменьшена до лимита.</div>
             </div>
 
-            <!-- Блок сортировки (кнопки) -->
             <div class="mb-3">
                 <label class="form-label">📊 Сортировать по</label>
                 <div class="btn-group w-100" role="group">
                     <a th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort='efficiency', page=0, size=${pageSize})}"
-                       class="btn btn-outline-primary" th:classappend="${selectedSort == 'efficiency'} ? 'active' : ''">
-                        ⚡ Эффективности
-                    </a>
+                       class="btn btn-outline-primary" th:classappend="${selectedSort == 'efficiency'} ? 'active' : ''">⚡ Эффективности</a>
                     <a th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort='coverage', page=0, size=${pageSize})}"
-                       class="btn btn-outline-primary" th:classappend="${selectedSort == 'coverage'} ? 'active' : ''">
-                        📈 Проценту покрытия
-                    </a>
+                       class="btn btn-outline-primary" th:classappend="${selectedSort == 'coverage'} ? 'active' : ''">📈 Проценту покрытия</a>
                 </div>
                 <div class="form-text mt-1">Эффективность = содержание нутриента на 100г / ккал. Покрытие = % от целевой нормы.</div>
             </div>
@@ -103,36 +95,35 @@
                                 <a th:href="${item.product.url}" target="_blank" class="text-muted ms-2">🔗</a>
                                 <span class="badge bg-light text-dark ms-2" th:text="${item.product.category}"></span>
                             </div>
-                            <span class="badge bg-info">эфф: <span th:text="${#numbers.formatDecimal(item.effectiveness, 1, 4)}"></span></span>
+                            <div class="d-flex align-items-center gap-2">
+                                <!-- Эффективность -->
+                                <span class="badge bg-info" title="Эффективность = содержание нутриента на 100г / ккал на 100г">
+                                    💪 эфф: <span th:text="${#numbers.formatDecimal(item.effectiveness, 1, 4)}"></span>
+                                </span>
+                                <div class="btn-group" role="group">
+                                    <!-- Кнопка избранное -->
+                                    <form action="/recommend/add-favorite" method="post" class="m-0">
+                                        <input type="hidden" name="productName" th:value="${item.product.name}">
+                                        <button type="submit" class="btn btn-sm" th:classappend="${favoriteProducts.contains(item.product.name)} ? 'btn-warning active' : 'btn-outline-warning'">
+                                            ⭐
+                                        </button>
+                                    </form>
+                                    <form action="/recommend/add-banned" method="post" class="m-0">
+                                        <input type="hidden" name="productName" th:value="${item.product.name}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">🚫</button>
+                                    </form>
+                                </div>
+                            </div>
                         </div>
                         <div class="row text-muted small mt-2">
-                            <div class="col-4">
-                                🔥 Калории (100г): <span th:text="${#numbers.formatDecimal(item.caloriesPer100g, 1, 0)}"></span> ккал
-                            </div>
-                            <div class="col-4">
-                                🥦 Содержание <span th:text="${nutrientName}"></span> в 100г:
-                                <span th:text="${#numbers.formatDecimal(item.nutrientValuePer100g, 1, 2)}"></span> <span th:text="${unit}"></span>
-                            </div>
-                            <div class="col-4" th:if="${item.requiredGrams != null}">
-                                ⚖️ Порция: <strong th:text="${#numbers.formatDecimal(item.requiredGrams, 1, 0)}"></strong> г
-                            </div>
+                            <div class="col-4">🔥 Калории (100г): <span th:text="${#numbers.formatDecimal(item.caloriesPer100g, 1, 0)}"></span> ккал</div>
+                            <div class="col-4">🥦 Содержание в 100г: <span th:text="${#numbers.formatDecimal(item.nutrientValuePer100g, 1, 2)}"></span> <span th:text="${unit}"></span></div>
+                            <div class="col-4" th:if="${item.requiredGrams != null}">⚖️ Порция: <strong th:text="${#numbers.formatDecimal(item.requiredGrams, 1, 0)}"></strong> г</div>
                         </div>
                         <div th:if="${norm != null and norm > 0 and item.requiredGrams != null}">
                             <div class="row small mt-2">
-                                <div class="col-12 text-primary">
-                                    💡 Покрывает <strong th:text="${#numbers.formatDecimal(item.coveredPercent, 1, 1)}"></strong>% от целевой нормы
-                                    (<span th:text="${norm}"></span> <span th:text="${unit}"></span>)
-                                </div>
-                                <div th:if="${item.isCapped}" class="col-12 text-warning mt-1">
-                                    ⚠️ Порция ограничена (максимальная норма или вес продукта)
-                                </div>
-                                <div th:if="${maxNorm != null and maxNorm > 0}">
-                                    <th:block th:with="actualCovered=${item.nutrientValuePer100g * (item.requiredGrams!! / 100.0)}">
-                                        <div th:if="${actualCovered > maxNorm}" class="col-12 text-warning mt-1">
-                                            ⚠️ Порция уменьшена, чтобы не превысить максимум <span th:text="${#numbers.formatDecimal(maxNorm, 1, 1)}"></span> <span th:text="${unit}"></span>
-                                        </div>
-                                    </th:block>
-                                </div>
+                                <div class="col-12 text-primary">💡 Покрывает <strong th:text="${#numbers.formatDecimal(item.coveredPercent, 1, 1)}"></strong>% от целевой нормы (<span th:text="${norm}"></span> <span th:text="${unit}"></span>)</div>
+                                <div th:if="${item.isCapped}" class="col-12 text-warning mt-1">⚠️ Порция ограничена (максимальная норма или вес продукта)</div>
                             </div>
                         </div>
                     </div>

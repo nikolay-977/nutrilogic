@@ -28,19 +28,17 @@
 </div>
 
 <ul class="nav nav-tabs justify-content-center mb-4">
-    <li class="nav-item">
-        <a class="nav-link" href="/search">🔍 Поиск продуктов</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link" href="/recommend">📊 Рекомендации по нутриентам</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link active" href="/meal-planner">🍽️ Планировщик меню</a>
-    </li>
+    <li class="nav-item"><a class="nav-link" href="/dashboard">📊 Дашборд</a></li>
+    <li class="nav-item"><a class="nav-link" href="/diary">📓 Дневник</a></li>
+    <li class="nav-item"><a class="nav-link" href="/search">🔍 Поиск</a></li>
+    <li class="nav-item"><a class="nav-link" href="/recommend">📊 Рекомендации</a></li>
+    <li class="nav-item"><a class="nav-link active" href="/meal-planner">🍽️ Планировщик</a></li>
+    <li class="nav-item"><a class="nav-link" href="/profile">👤 Профиль</a></li>
 </ul>
 
-<div class="row">
-    <div class="col-md-5">
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <!-- Блок добавления требования -->
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0">➕ Добавить требование</h5>
@@ -78,7 +76,8 @@
             </div>
         </div>
 
-        <div class="card shadow-sm">
+        <!-- Блок текущих требований -->
+        <div class="card shadow-sm mb-4">
             <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
                 <span>📋 Текущие требования</span>
                 <form action="/meal-planner/clear-requirements" method="post" class="m-0">
@@ -105,20 +104,19 @@
                 </ul>
             </div>
         </div>
-    </div>
 
-    <div class="col-md-7">
+        <!-- Блок генерации наборов и результатов -->
         <div class="card shadow-sm">
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0">🎲 Сгенерировать наборы</h5>
             </div>
             <div class="card-body">
-                <form action="/meal-planner/generate" method="get" class="row g-3 mb-3">
+                <form action="/meal-planner/generate" method="get" class="row g-3 mb-3 align-items-end">
                     <div class="col-auto">
                         <label class="form-label">Максимум наборов (до 10)</label>
                         <input type="number" name="maxSets" value="5" min="1" max="10" class="form-control">
                     </div>
-                    <div class="col-auto align-self-end">
+                    <div class="col-auto">
                         <button type="submit" class="btn btn-primary">✨ Получить наборы</button>
                     </div>
                 </form>
@@ -149,7 +147,16 @@
                                                     <span class="badge bg-secondary ms-2" th:text="${item.product.category}"></span>
                                                     <a th:href="${item.product.url}" target="_blank" class="text-muted ms-1">🔗</a>
                                                 </div>
-                                                <span class="badge bg-info">для <span th:text="${item.nutrientName}"></span></span>
+                                                <div class="btn-group" role="group">
+                                                    <form action="/recommend/add-favorite" method="post" class="m-0">
+                                                        <input type="hidden" name="productName" th:value="${item.product.name}">
+                                                        <button type="submit" class="btn btn-sm btn-outline-warning">⭐</button>
+                                                    </form>
+                                                    <form action="/recommend/add-banned" method="post" class="m-0">
+                                                        <input type="hidden" name="productName" th:value="${item.product.name}">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger">🚫</button>
+                                                    </form>
+                                                </div>
                                             </div>
                                             <div class="row small mt-2">
                                                 <div class="col-6">

@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <title>NutriLogic — поиск продуктов</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <style>
+        .effectiveness-badge {
+            font-size: 0.75rem;
+            white-space: nowrap;
+        }
+    </style>
 </head>
 <body class="container py-4">
 
@@ -13,15 +19,12 @@
 </div>
 
 <ul class="nav nav-tabs justify-content-center mb-4">
-    <li class="nav-item">
-        <a class="nav-link active" aria-current="page" href="/search">🔍 Поиск продуктов</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link" href="/recommend">📊 Рекомендации по нутриентам</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link" href="/meal-planner">🍽️ Планировщик меню</a>
-    </li>
+    <li class="nav-item"><a class="nav-link" href="/dashboard">📊 Дашборд</a></li>
+    <li class="nav-item"><a class="nav-link" href="/diary">📓 Дневник</a></li>
+    <li class="nav-item"><a class="nav-link" href="/search">🔍 Поиск</a></li>
+    <li class="nav-item"><a class="nav-link" href="/recommend">📊 Рекомендации</a></li>
+    <li class="nav-item"><a class="nav-link" href="/meal-planner">🍽️ Планировщик</a></li>
+    <li class="nav-item"><a class="nav-link" href="/profile">👤 Профиль</a></li>
 </ul>
 
 <div class="row justify-content-center">
@@ -29,62 +32,102 @@
         <form action="/search" method="get" class="card p-4 shadow-sm mb-5">
             <div class="mb-3">
                 <label for="name" class="form-label">🔎 Название продукта</label>
-                <input type="text" class="form-control" id="name" name="name" th:value="${searchName}"
-                       placeholder="Введите часть названия...">
+                <input type="text" class="form-control" id="name" name="name" th:value="${searchName}" placeholder="Введите часть названия...">
             </div>
             <div class="mb-3">
                 <label for="category" class="form-label">📂 Категория</label>
                 <select class="form-select" id="category" name="category">
                     <option value="">Все категории</option>
-                    <option th:each="c : ${categoryList}" th:value="${c}" th:text="${c}"
-                            th:selected="${c == selectedCategory}"></option>
+                    <option th:each="c : ${categoryList}" th:value="${c}" th:text="${c}" th:selected="${c == selectedCategory}"></option>
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary btn-lg">🔍 Найти</button>
+            <div class="mb-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-grow-1">🔍 Найти</button>
+                <input type="hidden" name="sort" th:value="${selectedSort}">
+            </div>
         </form>
 
-        <!-- Результаты -->
-        <div th:if="${products != null and !products.empty}">
-            <h4>Найдено продуктов: <span th:text="${products.size}"></span></h4>
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Название</th>
-                        <th>Категория</th>
-                        <th>Калорийность (100г)</th>
-                        <th>Ссылка</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <tr th:each="product,stat : ${products}">
-                        <td th:text="${stat.count}"></td>
-                        <td th:text="${product.name}"></td>
-                        <td th:text="${product.category}"></td>
-                        <td th:with="cal=${product.getCalories()}">
-                            <span th:if="${cal != null}" th:text="${cal} + ' ккал'"></span>
-                            <span th:unless="${cal != null}">—</span>
-                        </td>
-                        <td>
-                            <a th:href="${product.url}" target="_blank" class="btn btn-sm btn-outline-info">
-                                Открыть на HealthDiet 🔗
-                            </a>
-                        </td>
-                    </tr>
-                    </tbody>
-                </table>
+        <!-- Блок сортировки (только если есть результаты) -->
+        <div th:if="${productsWithEfficiency != null and totalProducts != null and totalProducts > 0}" class="card p-3 mb-4 bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <span>📊 Сортировать:</span>
+                <div class="btn-group" role="group">
+                    <a th:href="@{/search(name=${searchName}, category=${selectedCategory}, sort='efficiency')}"
+                       class="btn btn-sm btn-outline-primary" th:classappend="${selectedSort == 'efficiency'} ? 'active' : ''">
+                        ⚡ По эффективности
+                    </a>
+                    <a th:href="@{/search(name=${searchName}, category=${selectedCategory}, sort='name')}"
+                       class="btn btn-sm btn-outline-primary" th:classappend="${selectedSort == 'name'} ? 'active' : ''">
+                        🔤 По алфавиту
+                    </a>
+                </div>
+                <span class="text-muted small">Эффективность = г белка / 100 ккал</span>
             </div>
         </div>
 
-        <div th:if="${products != null and products.empty}" class="alert alert-info mt-4">
+        <!-- Результаты с использованием totalProducts -->
+        <div th:if="${productsWithEfficiency != null and totalProducts != null and totalProducts > 0}">
+            <h4>Найдено продуктов: <span th:text="${totalProducts}"></span></h4>
+            <div class="list-group">
+                <div th:each="item : ${productsWithEfficiency}" class="list-group-item rounded-3 shadow-sm mb-2">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <strong th:text="${item.product.name}"></strong>
+                            <span class="badge bg-light text-dark ms-2" th:text="${item.product.category}"></span>
+                            <a th:href="${item.product.url}" target="_blank" class="text-muted ms-2" title="Открыть на health-diet.ru">🔗</a>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span th:if="${item.efficiency > 0}" class="badge bg-info effectiveness-badge" title="Эффективность = г белка на 100 ккал">
+                                💪 эфф: <span th:text="${#numbers.formatDecimal(item.efficiency, 1, 4)}"></span>
+                            </span>
+                            <div class="btn-group" role="group">
+                                <form action="/recommend/add-favorite" method="post" class="m-0">
+                                    <input type="hidden" name="productName" th:value="${item.product.name}">
+                                    <button type="submit" class="btn btn-sm" th:classappend="${favoriteProducts.contains(item.product.name)} ? 'btn-warning active' : 'btn-outline-warning'" title="В избранное">
+                                        ⭐
+                                    </button>
+                                </form>
+                                <form action="/recommend/add-banned" method="post" class="m-0">
+                                    <input type="hidden" name="productName" th:value="${item.product.name}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Заблокировать">
+                                        🚫
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row text-muted small mt-2">
+                        <div class="col-6">
+                            🔥 Калории (100г):
+                            <span th:with="cal=${item.product.getCalories()}" th:text="${cal != null ? cal.intValue() : '—'}"></span> ккал
+                        </div>
+                        <div class="col-6">
+                            🥦 Белки:
+                            <span th:with="prot=${item.product.getNutrientValue('Белки')}" th:text="${prot != null ? prot : '—'}"></span> г
+                        </div>
+                    </div>
+                    <div class="row text-muted small">
+                        <div class="col-12">
+                            Жиры: <span th:with="fat=${item.product.getNutrientValue('Жиры')}" th:text="${fat != null ? fat : '—'}"></span> г &nbsp;|&nbsp;
+                            Углеводы: <span th:with="carbs=${item.product.getNutrientValue('Углеводы')}" th:text="${carbs != null ? carbs : '—'}"></span> г
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div th:if="${productsWithEfficiency != null and totalProducts != null and totalProducts == 0}" class="alert alert-info mt-4">
             ❌ Нет продуктов, соответствующих вашему запросу.
+        </div>
+        <div th:if="${productsWithEfficiency == null}" class="alert alert-secondary mt-4">
+            Введите запрос для поиска.
         </div>
     </div>
 </div>
 
 <footer class="mt-5 text-center text-muted small">
-    Данные: health-diet.ru
+    Данные: health-diet.ru. Эффективность = содержание белка (г) на 100 г продукта / калорийность на 100 г продукта.<br>
+    ⭐ Избранные продукты выделены жёлтой кнопкой. 🚫 Стоп-лист скрывает продукты из поиска.
 </footer>
 </body>
 </html>
