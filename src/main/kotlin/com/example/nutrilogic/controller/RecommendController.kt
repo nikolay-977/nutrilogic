@@ -7,26 +7,35 @@ import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.web.bind.annotation.*
 import kotlin.math.max
+import kotlin.math.min
 
 @Controller
 class RecommendController(private val productService: ProductService) {
 
-    // ---------- DTO ----------
+    // ---------- DTOs ----------
     data class RequirementDto(
         val nutrientName: String,
-        val dailyNorm: Double      // всегда в миллиграммах
+        val targetNorm: Double,
+        val minNorm: Double = 0.0,
+        val maxNorm: Double = 0.0,
+        val unit: String? = null,
+        val maxGramsPerProduct: Double = 500.0
     )
 
     data class RecommendationItem(
         val product: Product,
         val effectiveness: Double,
-        val requiredGrams: Double?
+        val requiredGrams: Double?,
+        val coveredPercent: Double?,
+        val isCapped: Boolean = false,
+        val caloriesPer100g: Double = 0.0,
+        val nutrientValuePer100g: Double = 0.0
     )
 
     internal data class Candidate(
         val product: Product,
         val effectiveness: Double,
-        val nutrientValueMg: Double,
+        val nutrientValue: Double,
         val requiredGrams: Double,
         val caloriesPerServing: Double,
         val category: String
@@ -36,25 +45,26 @@ class RecommendController(private val productService: ProductService) {
         val product: Product,
         val requiredGrams: Double,
         val nutrientName: String,
-        val contributesNorm: Double
+        val contributesNorm: Double,
+        val unit: String?
+    )
+
+    data class RequirementCoverage(
+        val nutrientName: String,
+        val totalCovered: Double,
+        val targetNorm: Double,
+        val minNorm: Double,
+        val maxNorm: Double,
+        val unit: String?
     )
 
     data class MealSetDto(
         val id: Int,
         val items: List<MealItem>,
-        val totalCalories: Double
+        val totalCalories: Double,
+        val coverages: List<RequirementCoverage>
     ) {
-        fun copy(id: Int) = MealSetDto(id, items, totalCalories)
-    }
-
-    // ---------- Конвертация единиц ----------
-    private fun convertToMg(nutrientName: String, value: Double): Double {
-        val macroKeywords = listOf("белки", "белка", "жиры", "жира", "углеводы", "углеводов")
-        return if (macroKeywords.any { nutrientName.lowercase().contains(it) }) {
-            value * 1000.0   // граммы → миллиграммы
-        } else {
-            value
-        }
+        fun copy(id: Int) = MealSetDto(id, items, totalCalories, coverages)
     }
 
     // ---------- Основные маршруты ----------
@@ -66,6 +76,10 @@ class RecommendController(private val productService: ProductService) {
         @RequestParam(name = "nutrientName", required = false, defaultValue = "") nutrientName: String,
         @RequestParam(name = "category", required = false, defaultValue = "") category: String,
         @RequestParam(name = "norm", required = false, defaultValue = "0.0") norm: Double,
+        @RequestParam(name = "minNorm", required = false, defaultValue = "0.0") minNorm: Double,
+        @RequestParam(name = "maxNorm", required = false, defaultValue = "0.0") maxNorm: Double,
+        @RequestParam(name = "maxGramsPerProduct", required = false, defaultValue = "0.0") maxGramsPerProduct: Double,
+        @RequestParam(name = "sort", required = false, defaultValue = "efficiency") sort: String,
         @RequestParam(name = "page", defaultValue = "0") page: Int,
         @RequestParam(name = "size", defaultValue = "10") size: Int,
         model: Model
@@ -76,8 +90,17 @@ class RecommendController(private val productService: ProductService) {
         model.addAttribute("categoryList", categoryList)
         model.addAttribute("selectedCategory", category)
         model.addAttribute("pageSize", size)
-        // Сохраняем исходную норму (как ввёл пользователь) для отображения в форме
         model.addAttribute("norm", norm)
+        model.addAttribute("minNorm", minNorm)
+        model.addAttribute("maxNorm", maxNorm)
+        model.addAttribute("maxGramsPerProduct", maxGramsPerProduct)
+        model.addAttribute("selectedSort", sort)
+
+        var unit: String? = null
+        if (nutrientName.isNotBlank()) {
+            unit = productService.getUnitForNutrient(nutrientName) ?: "ед."
+        }
+        model.addAttribute("unit", unit)
 
         if (nutrientName.isBlank()) {
             model.addAttribute("nutrientName", "")
@@ -88,29 +111,55 @@ class RecommendController(private val productService: ProductService) {
             return "index"
         }
 
-        // Для расчётов переводим норму в мг (если это макронутриент)
-        val normMg = if (norm > 0) convertToMg(nutrientName, norm) else 0.0
-
-        val allRecommendationsRaw = productService.recommendProductsAll(
-            nutrientName,
-            if (category.isBlank()) null else category
-        )
-
+        val allRecommendationsRaw = productService.recommendProductsAll(nutrientName, if (category.isBlank()) null else category)
         val allRecommendations = allRecommendationsRaw.mapNotNull { (product, effectiveness) ->
-            val requiredGrams = if (normMg > 0) {
-                val nutrientValueMg = product.getNutrientValue(nutrientName)
-                if (nutrientValueMg != null && nutrientValueMg > 0) {
-                    (normMg / nutrientValueMg) * 100.0
-                } else null
+            val nutrientValue = product.getNutrientValue(nutrientName) ?: return@mapNotNull null
+            if (nutrientValue <= 0.0) return@mapNotNull null
+
+            var requiredGrams = if (norm > 0) (norm / nutrientValue) * 100.0 else null
+            var isCapped = false
+
+            if (requiredGrams != null) {
+                if (maxNorm > 0.0) {
+                    val actualCovered = nutrientValue * (requiredGrams / 100.0)
+                    if (actualCovered > maxNorm) {
+                        requiredGrams = (maxNorm / nutrientValue) * 100.0
+                        isCapped = true
+                    }
+                }
+                if (maxGramsPerProduct > 0.0 && requiredGrams > maxGramsPerProduct) {
+                    requiredGrams = maxGramsPerProduct
+                    isCapped = true
+                }
+            }
+
+            val coveredPercent = if (requiredGrams != null && norm > 0) {
+                (nutrientValue * (requiredGrams / 100.0)) / norm * 100
             } else null
-            RecommendationItem(product, effectiveness, requiredGrams)
+
+            val calories = product.getCalories() ?: 0.0
+            RecommendationItem(
+                product = product,
+                effectiveness = effectiveness,
+                requiredGrams = requiredGrams,
+                coveredPercent = coveredPercent,
+                isCapped = isCapped,
+                caloriesPer100g = calories,
+                nutrientValuePer100g = nutrientValue
+            )
         }
 
-        val totalItems = allRecommendations.size
+        // Сортировка
+        val sortedRecommendations = when (sort) {
+            "coverage" -> allRecommendations.sortedByDescending { it.coveredPercent ?: 0.0 }
+            else -> allRecommendations.sortedByDescending { it.effectiveness }
+        }
+
+        val totalItems = sortedRecommendations.size
         val totalPages = if (size > 0 && totalItems > 0) (totalItems + size - 1) / size else 1
         val start = page * size
         val end = minOf(start + size, totalItems)
-        val pageItems = if (start < totalItems) allRecommendations.subList(start, end) else emptyList()
+        val pageItems = if (start < totalItems) sortedRecommendations.subList(start, end) else emptyList()
 
         model.addAttribute("nutrientName", nutrientName)
         model.addAttribute("recommendations", pageItems)
@@ -148,15 +197,17 @@ class RecommendController(private val productService: ProductService) {
     @PostMapping("/meal-planner/add-requirement")
     fun addRequirement(
         @RequestParam nutrientName: String,
-        @RequestParam dailyNorm: Double,
+        @RequestParam targetNorm: Double,
+        @RequestParam(defaultValue = "0.0") minNorm: Double,
+        @RequestParam(defaultValue = "0.0") maxNorm: Double,
+        @RequestParam(defaultValue = "500.0") maxGramsPerProduct: Double,
         session: HttpSession
     ): String {
-        if (nutrientName.isNotBlank() && dailyNorm > 0) {
+        if (nutrientName.isNotBlank() && targetNorm > 0) {
             val requirements = session.getAttribute("requirements") as? MutableList<RequirementDto>
                 ?: mutableListOf()
-            // Конвертируем норму в миллиграммы если нужно
-            val normMg = convertToMg(nutrientName, dailyNorm)
-            requirements.add(RequirementDto(nutrientName, normMg))
+            val unit = productService.getUnitForNutrient(nutrientName) ?: "ед."
+            requirements.add(RequirementDto(nutrientName, targetNorm, minNorm, maxNorm, unit, maxGramsPerProduct))
             session.setAttribute("requirements", requirements)
         }
         return "redirect:/meal-planner"
@@ -171,170 +222,149 @@ class RecommendController(private val productService: ProductService) {
     @GetMapping("/meal-planner/generate")
     fun generateMealSets(
         @RequestParam(defaultValue = "5") maxSets: Int,
-        @RequestParam(defaultValue = "500") maxGramsPerProduct: Double,
         session: HttpSession,
         model: Model
     ): String {
-        val requirements = session.getAttribute("requirements") as? List<RequirementDto>
-            ?: emptyList()
-
+        val requirements = session.getAttribute("requirements") as? List<RequirementDto> ?: emptyList()
         if (requirements.isEmpty()) {
             return "redirect:/meal-planner?error=no_requirements"
         }
-
         val setsCount = minOf(maxSets, 10)
-        val mealSets = generateBalancedSets(requirements, setsCount, maxGramsPerProduct)
-
+        val mealSets = generateBalancedSets(requirements, setsCount)
         model.addAttribute("mealSets", mealSets)
         model.addAttribute("requirements", requirements)
         model.addAttribute("nutrientList", productService.getAllNutrientNames())
         model.addAttribute("categoryList", productService.getAllCategoryNames())
-
         return "meal-planner"
     }
 
     // ---------- Логика генерации наборов ----------
-// ---------- Логика генерации наборов (исправленная) ----------
-    private fun generateBalancedSets(
-        requirements: List<RequirementDto>,
-        setsCount: Int,
-        maxGramsPerProduct: Double
-    ): List<MealSetDto> {
+    private fun generateBalancedSets(requirements: List<RequirementDto>, setsCount: Int): List<MealSetDto> {
         if (requirements.isEmpty()) return emptyList()
-
-        // ---- Случай одного нутриента: просто лучшие продукты без ограничения категорий ----
-        if (requirements.size == 1) {
-            val req = requirements[0]
-            val candidates = productService.recommendProductsAll(req.nutrientName, null)
-                .mapNotNull { (product, _) ->
-                    val rawValue = product.getNutrientValue(req.nutrientName)
-                    if (rawValue != null && rawValue > 0) {
-                        val valueMg = normalizeNutrientValue(req.nutrientName, rawValue)
-                        val requiredGrams = (req.dailyNorm / valueMg) * 100.0
-                        if (requiredGrams <= maxGramsPerProduct) {
-                            Candidate(
-                                product = product,
-                                effectiveness = valueMg / (product.getCalories() ?: 1.0),
-                                nutrientValueMg = valueMg,
-                                requiredGrams = requiredGrams,
-                                caloriesPerServing = product.getCalories() ?: 0.0,
-                                category = product.category.ifBlank { "Без категории" }
-                            )
-                        } else null
-                    } else null
-                }
-                .distinctBy { it.product.name }
-                .sortedByDescending { it.effectiveness }
-                .take(setsCount)
-
-            return candidates.mapIndexed { idx, cand ->
-                val mealItem = MealItem(
-                    product = cand.product,
-                    requiredGrams = cand.requiredGrams,
-                    nutrientName = req.nutrientName,
-                    contributesNorm = req.dailyNorm
-                )
-                val totalCalories = cand.caloriesPerServing * (cand.requiredGrams / 100.0)
-                MealSetDto(idx + 1, listOf(mealItem), totalCalories)
-            }
-        }
-
-        // ---- Случай нескольких требований: последовательный подбор с вычитанием ----
-        val allSets = mutableListOf<MealSetDto>()
-        val usedProductsGlobal = mutableSetOf<Product>()
-        val maxAttempts = 500
+        val candidates = mutableListOf<MealSetDto>()
+        val maxAttempts = 800
 
         for (attempt in 0 until maxAttempts) {
-            if (allSets.size >= setsCount) break
-
-            // Перемешиваем порядок требований для разнообразия
             val shuffledReqs = requirements.shuffled()
-            val result = generateSequentialSet(shuffledReqs, maxGramsPerProduct, usedProductsGlobal)
-            if (result != null) {
-                val key = result.items.joinToString { it.product.name }
-                if (allSets.none { it.items.joinToString { p -> p.product.name } == key }) {
-                    allSets.add(result.copy(id = allSets.size + 1))
-                    result.items.forEach { usedProductsGlobal.add(it.product) }
+            val set = generateSequentialSet(shuffledReqs, mutableSetOf())
+            if (set != null) {
+                val key = set.items.map { it.product.name }.sorted().joinToString()
+                if (candidates.none { it.items.map { p -> p.product.name }.sorted().joinToString() == key }) {
+                    if (set.coverages.all { cov -> cov.totalCovered >= cov.targetNorm * 0.1 }) {
+                        candidates.add(set)
+                    }
                 }
             }
+            if (candidates.size >= setsCount * 5) break
         }
-        return allSets
+
+        if (candidates.isEmpty()) return emptyList()
+
+        fun score(set: MealSetDto): Double {
+            var penalty = 0.0
+            for (cov in set.coverages) {
+                if (cov.minNorm > 0 && cov.totalCovered < cov.minNorm) {
+                    penalty += (cov.minNorm - cov.totalCovered) * 2.0
+                }
+                if (cov.maxNorm > 0 && cov.totalCovered > cov.maxNorm) {
+                    penalty += (cov.totalCovered - cov.maxNorm) * 1.5
+                }
+                penalty += kotlin.math.abs(cov.totalCovered - cov.targetNorm) * 0.1
+            }
+            return penalty
+        }
+
+        val bestCandidates = candidates.sortedBy { score(it) }.take(setsCount)
+        return bestCandidates.mapIndexed { idx, set -> set.copy(id = idx + 1) }
     }
 
-    /**
-     * Генерирует один набор, последовательно покрывая требования с вычитанием.
-     */
     private fun generateSequentialSet(
         requirements: List<RequirementDto>,
-        maxGramsPerProduct: Double,
         usedProductsGlobal: MutableSet<Product>
     ): MealSetDto? {
-        val remainingNorms = requirements.map { it.dailyNorm }.toDoubleArray()
+        val remainingNorms = requirements.map { it.targetNorm }.toDoubleArray()
         val selectedItems = mutableListOf<MealItem>()
         val usedProductsInSet = mutableSetOf<Product>()
 
         for ((idx, req) in requirements.withIndex()) {
-            val nutrientName = req.nutrientName
-            val remaining = remainingNorms[idx]
+            var remaining = remainingNorms[idx]
             if (remaining <= 0.0) continue
 
-            val candidates = productService.recommendProductsAll(nutrientName, null)
-                .mapNotNull { (product, _) ->
-                    if (product in usedProductsGlobal || product in usedProductsInSet) return@mapNotNull null
-                    val rawValue = product.getNutrientValue(nutrientName) ?: return@mapNotNull null
-                    val valueMg = normalizeNutrientValue(nutrientName, rawValue)
-                    if (valueMg <= 0) return@mapNotNull null
-                    val requiredGrams = (remaining / valueMg) * 100.0
-                    if (requiredGrams > maxGramsPerProduct) return@mapNotNull null
-                    val effectiveness = valueMg / (product.getCalories() ?: 1.0)
-                    Candidate(
-                        product = product,
-                        effectiveness = effectiveness,
-                        nutrientValueMg = valueMg,
-                        requiredGrams = requiredGrams,
-                        caloriesPerServing = product.getCalories() ?: 0.0,
-                        category = product.category
+            val itemsForReq = mutableListOf<MealItem>()
+            while (remaining > 0.0) {
+                val candidates = productService.recommendProductsAll(req.nutrientName, null)
+                    .mapNotNull { (product, _) ->
+                        if (product in usedProductsGlobal || product in usedProductsInSet) return@mapNotNull null
+                        val valuePer100g = product.getNutrientValue(req.nutrientName) ?: return@mapNotNull null
+                        if (valuePer100g <= 0.0) return@mapNotNull null
+                        val requiredGramsRaw = (remaining / valuePer100g) * 100.0
+                        val actualGrams = minOf(requiredGramsRaw, req.maxGramsPerProduct)
+                        if (actualGrams <= 0.0) return@mapNotNull null
+                        val contribution = valuePer100g * (actualGrams / 100.0)
+                        if (contribution < 0.01) return@mapNotNull null
+                        val effectiveness = valuePer100g / (product.getCalories() ?: 1.0)
+                        Candidate(
+                            product = product,
+                            effectiveness = effectiveness,
+                            nutrientValue = valuePer100g,
+                            requiredGrams = actualGrams,
+                            caloriesPerServing = product.getCalories() ?: 0.0,
+                            category = product.category
+                        )
+                    }
+                    .distinctBy { it.product.name }
+                    .sortedByDescending { it.effectiveness }
+
+                val best = candidates.firstOrNull() ?: break
+                itemsForReq.add(
+                    MealItem(
+                        product = best.product,
+                        requiredGrams = best.requiredGrams,
+                        nutrientName = req.nutrientName,
+                        contributesNorm = best.nutrientValue * (best.requiredGrams / 100.0),
+                        unit = req.unit
                     )
-                }
-                .sortedByDescending { it.effectiveness }
-
-            val best = candidates.firstOrNull() ?: return null
-            selectedItems.add(
-                MealItem(
-                    product = best.product,
-                    requiredGrams = best.requiredGrams,
-                    nutrientName = nutrientName,
-                    contributesNorm = remaining
                 )
-            )
-            usedProductsInSet.add(best.product)
+                usedProductsInSet.add(best.product)
+                remaining -= (best.nutrientValue * (best.requiredGrams / 100.0))
+            }
+            if (itemsForReq.isEmpty() && remaining > 0.0) return null
+            selectedItems.addAll(itemsForReq)
 
-            // Вычитаем вклад продукта из всех нутриентов
-            for (j in requirements.indices) {
-                if (remainingNorms[j] <= 0) continue
-                val otherNutrient = requirements[j].nutrientName
-                val otherRaw = best.product.getNutrientValue(otherNutrient) ?: continue
-                val otherValueMg = normalizeNutrientValue(otherNutrient, otherRaw)
-                if (otherValueMg > 0) {
-                    val contributed = otherValueMg * (best.requiredGrams / 100.0)
-                    remainingNorms[j] = max(0.0, remainingNorms[j] - contributed)
+            for (item in itemsForReq) {
+                for (j in requirements.indices) {
+                    if (remainingNorms[j] <= 0.0) continue
+                    val otherNutrient = requirements[j].nutrientName
+                    val otherValue = item.product.getNutrientValue(otherNutrient) ?: continue
+                    if (otherValue > 0.0) {
+                        val contributed = otherValue * (item.requiredGrams / 100.0)
+                        remainingNorms[j] = max(0.0, remainingNorms[j] - contributed)
+                    }
                 }
             }
         }
 
-        val totalCalories = selectedItems.sumOf {
+        val filteredItems = selectedItems.filter { it.contributesNorm >= 0.01 && it.requiredGrams >= 0.1 }
+
+        val coverages = requirements.map { req ->
+            val totalCovered = filteredItems.sumOf { item ->
+                val valuePer100g = item.product.getNutrientValue(req.nutrientName) ?: 0.0
+                valuePer100g * (item.requiredGrams / 100.0)
+            }
+            RequirementCoverage(
+                nutrientName = req.nutrientName,
+                totalCovered = totalCovered,
+                targetNorm = req.targetNorm,
+                minNorm = req.minNorm,
+                maxNorm = req.maxNorm,
+                unit = req.unit
+            )
+        }
+
+        val totalCalories = filteredItems.sumOf {
             (it.product.getCalories() ?: 0.0) * (it.requiredGrams / 100.0)
         }
-        return MealSetDto(0, selectedItems, totalCalories)
-    }
 
-    private fun normalizeNutrientValue(nutrientName: String, valueMg: Double): Double {
-        val macroKeywords = listOf("белки", "белка", "жиры", "жира", "углеводы", "углеводов")
-        // Если значение меньше 1000, возможно, это граммы, и нутриент — макро
-        return if (macroKeywords.any { nutrientName.lowercase().contains(it) } && valueMg < 1000) {
-            valueMg * 1000.0  // переводим граммы в миллиграммы
-        } else {
-            valueMg
-        }
+        return if (filteredItems.isNotEmpty()) MealSetDto(0, filteredItems, totalCalories, coverages) else null
     }
 }

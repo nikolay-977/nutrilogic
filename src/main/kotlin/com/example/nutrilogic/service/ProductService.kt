@@ -1,6 +1,7 @@
 package com.example.nutrilogic.service
 
 import com.example.nutrilogic.model.Product
+import com.example.nutrilogic.model.NutrientValue
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.springframework.boot.context.event.ApplicationReadyEvent
@@ -32,35 +33,29 @@ class ProductService {
         println("✅ Загружено ${products.size} продуктов")
     }
 
-    // Возвращает ВСЕ продукты, отсортированные по эффективности
-    fun recommendProductsAll(nutrientQuery: String): List<Pair<Product, Double>> {
-        val normalizedQuery = nutrientQuery.trim().lowercase()
-        if (products.isEmpty()) return emptyList()
-
-        var targetKey: String? = null
+    /**
+     * Возвращает единицу измерения для данного нутриента (по первому найденному продукту).
+     */
+    fun getUnitForNutrient(nutrientName: String): String? {
+        val normalized = nutrientName.trim().lowercase()
         for (product in products) {
-            targetKey = product.nutrients.keys.find {
-                it.lowercase() == normalizedQuery || it.lowercase().contains(normalizedQuery)
-            }
-            if (targetKey != null) break
+            val unit = product.getNutrientUnit(nutrientName)
+            if (unit != null) return unit
         }
-        if (targetKey == null) return emptyList()
-
-        val result = mutableListOf<Pair<Product, Double>>()
-        for (product in products) {
-            val value = product.getNutrientValue(targetKey) ?: continue
-            val calories = product.getCalories() ?: continue
-            if (calories <= 0) continue
-            result.add(product to (value / calories))
-        }
-        return result.sortedByDescending { it.second }
+        return null
     }
 
-    // Возвращает ВСЕ продукты с фильтром по категории
+    /**
+     * Возвращает все продукты, отсортированные по эффективности (содержание нутриента / ккал).
+     * @param nutrientQuery название нутриента
+     * @param category опциональная категория
+     * @return список пар (продукт, эффективность)
+     */
     fun recommendProductsAll(nutrientQuery: String, category: String? = null): List<Pair<Product, Double>> {
         val normalizedQuery = nutrientQuery.trim().lowercase()
         if (products.isEmpty()) return emptyList()
 
+        // Находим ключ нутриента (точное совпадение или содержащее подстроку)
         var targetKey: String? = null
         for (product in products) {
             targetKey = product.nutrients.keys.find {
@@ -72,7 +67,6 @@ class ProductService {
 
         val result = mutableListOf<Pair<Product, Double>>()
         for (product in products) {
-            // Фильтр по категории
             if (category != null && category.isNotBlank() && product.category != category) continue
             val value = product.getNutrientValue(targetKey) ?: continue
             val calories = product.getCalories() ?: continue
@@ -98,41 +92,6 @@ class ProductService {
         return result.sortedBy { it.name }.toMutableList()
     }
 
-    fun recommendProducts(nutrientQuery: String, limit: Int = 7): List<Pair<Product, Double>> {
-        // Нормализуем запрос: убираем лишние пробелы, приводим к нижнему регистру
-        val normalizedQuery = nutrientQuery.trim().lowercase()
-
-        // Сначала попробуем найти точное совпадение (игнорируя регистр)
-        var exactKey: String? = null
-        if (products.isNotEmpty()) {
-            val sampleKeys = products.first().nutrients.keys
-            exactKey = sampleKeys.find { it.lowercase() == normalizedQuery }
-        }
-
-        // Если точного нет, ищем ключ, содержащий подстроку
-        val targetKey = if (exactKey != null) {
-            exactKey
-        } else {
-            var foundKey: String? = null
-            for (product in products) {
-                foundKey = product.nutrients.keys.find { it.lowercase().contains(normalizedQuery) }
-                if (foundKey != null) break
-            }
-            foundKey
-        }
-
-        if (targetKey == null) return emptyList()
-
-        val result = mutableListOf<Pair<Product, Double>>()
-        for (product in products) {
-            val value = product.getNutrientValue(targetKey) ?: continue
-            val calories = product.getCalories() ?: continue
-            if (calories <= 0) continue
-            result.add(product to (value / calories))
-        }
-        return result.sortedByDescending { it.second }.take(limit)
-    }
-
     fun getAllNutrientNames(): List<String> {
         val set = mutableSetOf<String>()
         for (product in products) {
@@ -141,5 +100,12 @@ class ProductService {
         return set.sorted()
     }
 
-
+    fun getProductCountForNutrient(nutrientName: String): Int {
+        val normalized = nutrientName.trim().lowercase()
+        return products.count { product ->
+            product.nutrients.keys.any { key ->
+                key.lowercase() == normalized || key.lowercase().contains(normalized)
+            }
+        }
+    }
 }

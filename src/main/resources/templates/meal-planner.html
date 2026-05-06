@@ -4,6 +4,21 @@
     <meta charset="UTF-8">
     <title>NutriLogic — Планировщик меню</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <style>
+        .progress-bar {
+            color: #000;
+            font-weight: 500;
+            line-height: 25px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-left: 8px;
+            text-align: left;
+        }
+        .accordion-button:not(.collapsed) {
+            background-color: #e7f1ff;
+        }
+    </style>
 </head>
 <body class="container py-4">
 
@@ -40,12 +55,23 @@
                         </datalist>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Дневная норма</label>
-                        <input type="number" step="0.1" name="dailyNorm" class="form-control" required>
-                        <div class="form-text text-info">
-                            🧠 <strong>Для белков, жиров и углеводов</strong> — введите значение в <strong>граммах</strong> (например, 100).<br>
-                            Для витаминов и минералов — в <strong>миллиграммах</strong>.
-                        </div>
+                        <label class="form-label">🎯 Целевая норма</label>
+                        <input type="number" step="0.1" name="targetNorm" class="form-control" required>
+                        <div class="form-text">Значение, к которому стремимся (единицы нутриента)</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">📉 Минимальная норма (опционально)</label>
+                        <input type="number" step="0.1" name="minNorm" value="0" class="form-control">
+                        <div class="form-text">Нижний предел (0 – не используется)</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">📈 Максимальная норма (опционально)</label>
+                        <input type="number" step="0.1" name="maxNorm" value="0" class="form-control">
+                        <div class="form-text">Верхний предел (0 – не используется)</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Макс. граммов на продукт</label>
+                        <input type="number" step="10" name="maxGramsPerProduct" value="500" class="form-control" required>
                     </div>
                     <button type="submit" class="btn btn-success w-100">➕ Добавить</button>
                 </form>
@@ -61,12 +87,20 @@
             </div>
             <div class="card-body">
                 <div th:if="${requirements.empty}" class="text-muted">
-                    Пока нет добавленных требований. Добавьте нутриент и норму.
+                    Пока нет добавленных требований. Добавьте нутриент и целевой норму.
                 </div>
                 <ul class="list-group" th:unless="${requirements.empty}">
-                    <li th:each="req,stat : ${requirements}" class="list-group-item d-flex justify-content-between align-items-center">
-                        <span><strong th:text="${req.nutrientName}"></strong> — <span th:text="${req.dailyNorm}"></span> мг</span>
-                        <span class="badge bg-primary rounded-pill" th:text="${stat.index + 1}"></span>
+                    <li th:each="req,stat : ${requirements}" class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong th:text="${req.nutrientName}"></strong><br>
+                                🎯 Цель: <span th:text="${req.targetNorm}"></span> <span th:text="${req.unit}"></span><br>
+                                <span th:if="${req.minNorm > 0}">📉 Мин: <span th:text="${req.minNorm}"></span> <span th:text="${req.unit}"></span><br></span>
+                                <span th:if="${req.maxNorm > 0}">📈 Макс: <span th:text="${req.maxNorm}"></span> <span th:text="${req.unit}"></span><br></span>
+                                <small class="text-muted">макс. граммов/продукт: <span th:text="${req.maxGramsPerProduct}"></span> г</small>
+                            </div>
+                            <span class="badge bg-primary rounded-pill" th:text="${stat.index + 1}"></span>
+                        </div>
                     </li>
                 </ul>
             </div>
@@ -79,12 +113,7 @@
                 <h5 class="mb-0">🎲 Сгенерировать наборы</h5>
             </div>
             <div class="card-body">
-                <form action="/meal-planner/generate" method="get" class="row g-3">
-                    <div class="col-auto">
-                        <label class="form-label">Макс. граммов на продукт</label>
-                        <input type="number" name="maxGramsPerProduct" value="2000" step="100" class="form-control">
-                        <div class="form-text">Если продукт требует больше — не рассматривается</div>
-                    </div>
+                <form action="/meal-planner/generate" method="get" class="row g-3 mb-3">
                     <div class="col-auto">
                         <label class="form-label">Максимум наборов (до 10)</label>
                         <input type="number" name="maxSets" value="5" min="1" max="10" class="form-control">
@@ -100,7 +129,7 @@
 
                 <!-- Результаты -->
                 <div th:if="${mealSets != null and !mealSets.empty}">
-                    <h5 class="mt-3">🍱 Сгенерированные наборы (каждый покрывает все нормы)</h5>
+                    <h5 class="mt-3">🍱 Сгенерированные наборы</h5>
                     <div class="accordion" id="accordionSets">
                         <div th:each="set, iterStat : ${mealSets}" class="accordion-item">
                             <h2 class="accordion-header" th:id="'heading' + ${set.id}">
@@ -111,7 +140,8 @@
                             </h2>
                             <div th:id="'collapse' + ${set.id}" class="accordion-collapse collapse" th:classappend="${iterStat.index == 0} ? 'show'" th:attr="aria-labelledby='heading' + ${set.id}, data-bs-parent='#accordionSets'">
                                 <div class="accordion-body">
-                                    <ul class="list-group">
+                                    <h6>🍽️ Продукты в наборе:</h6>
+                                    <ul class="list-group mb-3">
                                         <li th:each="item : ${set.items}" class="list-group-item">
                                             <div class="d-flex justify-content-between">
                                                 <div>
@@ -122,11 +152,13 @@
                                                 <span class="badge bg-info">для <span th:text="${item.nutrientName}"></span></span>
                                             </div>
                                             <div class="row small mt-2">
-                                                <div class="col">
-                                                    🍽️ Норма <span th:text="${item.contributesNorm}"></span> мг →
+                                                <div class="col-6">
+                                                    🍽️ Вносит:
+                                                    <span th:text="${#numbers.formatDecimal(item.contributesNorm, 1, 1)}"></span>
+                                                    <span th:text="${item.unit}"></span> →
                                                     <strong><span th:text="${#numbers.formatDecimal(item.requiredGrams, 1, 1)}"></span> г</strong> продукта
                                                 </div>
-                                                <div class="col">
+                                                <div class="col-6">
                                                     🔥 Калорийность порции:
                                                     <span th:with="calPortion=${item.product.getCalories() != null ? (item.product.getCalories() * item.requiredGrams / 100) : 0.0}"
                                                           th:text="${#numbers.formatDecimal(calPortion, 1, 0)}"></span> ккал
@@ -134,6 +166,27 @@
                                             </div>
                                         </li>
                                     </ul>
+
+                                    <h6>📊 Покрытие целевых норм (всеми продуктами набора):</h6>
+                                    <div th:each="cov : ${set.coverages}" class="mb-2">
+                                        <div class="d-flex justify-content-between small mb-1">
+                                            <span><strong th:text="${cov.nutrientName}"></strong> (цель <span th:text="${cov.targetNorm}"></span> <span th:text="${cov.unit}"></span>)</span>
+                                            <span th:text="|${#numbers.formatDecimal(cov.totalCovered, 1, 1)} / ${#numbers.formatDecimal(cov.targetNorm, 1, 1)} ${cov.unit ?: ''}|"></span>
+                                        </div>
+                                        <div class="progress" style="height: 25px;">
+                                            <div class="progress-bar bg-success" role="progressbar"
+                                                 th:style="'width: ' + (${cov.totalCovered / cov.targetNorm * 100}) + '%'"
+                                                 th:attr="aria-valuenow=${cov.totalCovered}, aria-valuemin=0, aria-valuemax=${cov.targetNorm}">
+                                                <span th:text="${#numbers.formatDecimal(cov.totalCovered / cov.targetNorm * 100, 1, 0)} + '%'"></span>
+                                            </div>
+                                        </div>
+                                        <div th:if="${cov.minNorm > 0 and cov.totalCovered < cov.minNorm}" class="text-warning small">
+                                            ⚠️ Ниже минимальной нормы (<span th:text="${#numbers.formatDecimal(cov.minNorm, 1, 1)}"></span> <span th:text="${cov.unit}"></span>)
+                                        </div>
+                                        <div th:if="${cov.maxNorm > 0 and cov.totalCovered > cov.maxNorm}" class="text-warning small">
+                                            ⚠️ Превышает максимальную норму (<span th:text="${#numbers.formatDecimal(cov.maxNorm, 1, 1)}"></span> <span th:text="${cov.unit}"></span>)
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -148,7 +201,8 @@
 </div>
 
 <footer class="mt-5 text-center text-muted small">
-    Алгоритм подбирает продукты с максимальной эффективностью (мг/ккал) и старается избегать повторения продуктов или категорий в одном наборе.
+    Алгоритм стремится покрыть целевую норму каждого нутриента, используя продукты с максимальной эффективностью.<br>
+    Если заданы границы (мин/макс), наборы с выходом за них штрафуются при отборе.
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
