@@ -141,7 +141,7 @@
                                     <h6>🍽️ Продукты в наборе:</h6>
                                     <ul class="list-group mb-3">
                                         <li th:each="item : ${set.items}" class="list-group-item">
-                                            <div class="d-flex justify-content-between">
+                                            <div class="d-flex justify-content-between align-items-start">
                                                 <div>
                                                     <strong th:text="${item.product.name}"></strong>
                                                     <span class="badge bg-secondary ms-2" th:text="${item.product.category}"></span>
@@ -160,10 +160,9 @@
                                             </div>
                                             <div class="row small mt-2">
                                                 <div class="col-6">
-                                                    🍽️ Вносит:
-                                                    <span th:text="${#numbers.formatDecimal(item.contributesNorm, 1, 1)}"></span>
-                                                    <span th:text="${item.unit}"></span> →
-                                                    <strong><span th:text="${#numbers.formatDecimal(item.requiredGrams, 1, 1)}"></span> г</strong> продукта
+                                                    🍽️ Вносит <span th:text="${item.nutrientName}"></span>:
+                                                    <span th:text="${#numbers.formatDecimal(item.contributesNorm, 1, 1)}"></span> <span th:text="${item.unit}"></span>
+                                                    → <strong><span th:text="${#numbers.formatDecimal(item.requiredGrams, 1, 1)}"></span> г</strong> продукта
                                                 </div>
                                                 <div class="col-6">
                                                     🔥 Калорийность порции:

@@ -32,12 +32,12 @@ class UserController(private val productService: ProductService) {
         var profile = session.getAttribute("userProfile") as? UserProfile
         if (profile == null) {
             profile = UserProfile().apply {
-                name = "Плюшкин Валерий Николаевич"
-                gender = "male"
-                birthDate = LocalDate.parse("1988-08-27")
-                height = 181.0
-                weight = 82.0
-                activityLevel = "light"
+                name = "Гость"
+                gender = "other"
+                birthDate = null
+                height = 0.0
+                weight = 0.0
+                activityLevel = "moderate"
                 targetCalories = 2000.0
                 targetProtein = 120.0
                 targetFat = 70.0
@@ -84,7 +84,7 @@ class UserController(private val productService: ProductService) {
         profile.targetFat = targetFat
         profile.targetCarbs = targetCarbs
         session.setAttribute("userProfile", profile)
-        return "redirect:/dashboard"
+        return "redirect:/profile"
     }
 
     @GetMapping("/dashboard")
@@ -103,13 +103,11 @@ class UserController(private val productService: ProductService) {
 
         val allNutrients = mutableListOf<NutrientProgress>()
 
-        // Основные нутриенты
         allNutrients.add(NutrientProgress("Калории", profile.targetCalories, totals["calories"] ?: 0.0, "ккал", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
         allNutrients.add(NutrientProgress("Белки", profile.targetProtein, totals["protein"] ?: 0.0, "г", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
         allNutrients.add(NutrientProgress("Жиры", profile.targetFat, totals["fat"] ?: 0.0, "г", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
         allNutrients.add(NutrientProgress("Углеводы", profile.targetCarbs, totals["carbs"] ?: 0.0, "г", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
 
-        // Произвольные нутриенты
         profile.customTargets.forEach { (name, norms) ->
             val target = norms.first
             val minNorm = norms.second
@@ -118,7 +116,6 @@ class UserController(private val productService: ProductService) {
             allNutrients.add(NutrientProgress(name, target, consumed, "мг", isCustom = true, minNorm = minNorm, maxNorm = maxNorm))
         }
 
-        // Вычисляем класс цвета и статус для каждого
         val nutrientsWithStatus = allNutrients.map { nutrient ->
             val progressPercent = if (nutrient.target > 0) (nutrient.consumed / nutrient.target * 100).coerceIn(0.0, 100.0) else 0.0
             val (colorClass, statusText) = when {
@@ -172,16 +169,26 @@ class UserController(private val productService: ProductService) {
             ?: return "redirect:/diary?date=$date&error=notfound"
 
         val factor = quantity / 100.0
+        val nutrientsMap = mutableMapOf<String, Double>()
+
+        // Основные нутриенты (обязательные)
+        nutrientsMap["Калории"] = (product.getCalories() ?: 0.0) * factor
+        nutrientsMap["Белки"] = (product.getNutrientValue("Белки") ?: 0.0) * factor
+        nutrientsMap["Жиры"] = (product.getNutrientValue("Жиры") ?: 0.0) * factor
+        nutrientsMap["Углеводы"] = (product.getNutrientValue("Углеводы") ?: 0.0) * factor
+
+        // Произвольные нутриенты (витамины, минералы) из профиля пользователя
+        profile.customTargets.keys.forEach { nutrientName ->
+            val value = product.getNutrientValue(nutrientName) ?: 0.0
+            nutrientsMap[nutrientName] = value * factor
+        }
+
         val consumed = ConsumedProduct(
             product = product,
             quantity = quantity,
             mealType = mealType,
-            calories = (product.getCalories() ?: 0.0) * factor,
-            nutrients = mapOf(
-                "Белки" to (product.getNutrientValue("Белки") ?: 0.0) * factor,
-                "Жиры" to (product.getNutrientValue("Жиры") ?: 0.0) * factor,
-                "Углеводы" to (product.getNutrientValue("Углеводы") ?: 0.0) * factor
-            )
+            calories = nutrientsMap["Калории"] ?: 0.0,
+            nutrients = nutrientsMap
         )
 
         val diary = session.getAttribute("diary") as? MutableMap<LocalDate, DiaryEntry> ?: mutableMapOf()
@@ -218,7 +225,6 @@ class UserController(private val productService: ProductService) {
         return "redirect:/diary?date=$date"
     }
 
-    // ---------- Управление предпочтениями ----------
     @GetMapping("/profile/preferences")
     fun preferencesPage(model: Model, session: HttpSession): String {
         val profile = getProfile(session)
@@ -243,7 +249,6 @@ class UserController(private val productService: ProductService) {
         return "redirect:/profile/preferences"
     }
 
-    // ---------- Управление произвольными нутриентами (на дашборде) ----------
     @PostMapping("/dashboard/add-custom-target")
     fun addCustomTargetOnDashboard(
         @RequestParam nutrientName: String,

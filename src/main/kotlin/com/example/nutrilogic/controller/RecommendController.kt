@@ -35,7 +35,8 @@ class RecommendController(private val productService: ProductService) {
         val requiredGrams: Double,
         val nutrientName: String,
         val contributesNorm: Double,
-        val unit: String?
+        val unit: String?,
+        val contributions: Map<String, Double> = emptyMap()   // <-- новое поле
     )
 
     data class RequirementCoverage(
@@ -252,7 +253,7 @@ class RecommendController(private val productService: ProductService) {
         model.addAttribute("searchName", name)
         model.addAttribute("selectedSort", sort)
         model.addAttribute("productsWithEfficiency", sortedProducts)
-        model.addAttribute("totalProducts", sortedProducts.size)   // добавляем
+        model.addAttribute("totalProducts", sortedProducts.size)
         model.addAttribute("favoriteProducts", profile.favoriteProducts)
         return "search"
     }
@@ -311,7 +312,6 @@ class RecommendController(private val productService: ProductService) {
         return "meal-planner"
     }
 
-    // ---------- НОВЫЙ БЫСТРЫЙ АЛГОРИТМ ГЕНЕРАЦИИ НАБОРОВ ----------
     private fun generateBalancedSetsFast(
         requirements: List<RequirementDto>,
         setsCount: Int,
@@ -325,10 +325,9 @@ class RecommendController(private val productService: ProductService) {
         for (setIndex in 0 until setsCount) {
             val setItems = mutableListOf<MealItem>()
             val usedProductsInSet = mutableSetOf<Product>()
-            val usedCategoriesInSet = mutableSetOf<String>()  // глобальные категории, использованные в наборе
+            val usedCategoriesInSet = mutableSetOf<String>()
             var setValid = true
 
-            // Проходим требования в обратном порядке
             for (req in requirements.reversed()) {
                 var remaining = req.targetNorm
                 val maxAllowed = if (req.maxNorm > 0) req.maxNorm else Double.MAX_VALUE
@@ -341,7 +340,6 @@ class RecommendController(private val productService: ProductService) {
                     val desiredIncrement = minOf(remaining, remainingSpace)
                     if (desiredIncrement <= 0) break
 
-                    // Сначала ищем продукты из категорий, ещё не использованных в наборе
                     var best = availableProducts
                         .filter { it !in usedProductsInSet && it.category !in usedCategoriesInSet }
                         .mapNotNull { product ->
@@ -352,7 +350,6 @@ class RecommendController(private val productService: ProductService) {
                         }
                         .maxByOrNull { it.third }
 
-                    // Если нет – разрешаем любые (даже из уже использованных категорий)
                     if (best == null) {
                         best = availableProducts
                             .filter { it !in usedProductsInSet }
@@ -364,7 +361,6 @@ class RecommendController(private val productService: ProductService) {
                             }
                             .maxByOrNull { it.third }
                     }
-
                     if (best == null) {
                         setValid = false
                         break
@@ -373,6 +369,11 @@ class RecommendController(private val productService: ProductService) {
                     val requiredGramsRaw = (desiredIncrement / valuePer100g) * 100.0
                     val actualGrams = minOf(requiredGramsRaw, req.maxGramsPerProduct)
                     var contribution = valuePer100g * (actualGrams / 100.0)
+                    val contributionsMap = mutableMapOf<String, Double>()
+                    for (r in requirements) {
+                        val value = product.getNutrientValue(r.nutrientName) ?: 0.0
+                        contributionsMap[r.nutrientName] = value * (actualGrams / 100.0)
+                    }
                     if (contribution > desiredIncrement) contribution = desiredIncrement
                     if (contribution <= 0.0) continue
 
@@ -382,11 +383,12 @@ class RecommendController(private val productService: ProductService) {
                             requiredGrams = actualGrams,
                             nutrientName = req.nutrientName,
                             contributesNorm = contribution,
-                            unit = req.unit
+                            unit = req.unit,
+                            contributions = contributionsMap
                         )
                     )
                     usedProductsInSet.add(product)
-                    usedCategoriesInSet.add(product.category) // запоминаем категорию для всего набора
+                    usedCategoriesInSet.add(product.category)
                     remaining -= contribution
                     remainingSpace -= contribution
                 }
@@ -394,7 +396,6 @@ class RecommendController(private val productService: ProductService) {
             }
 
             if (setValid && setItems.isNotEmpty()) {
-                // Фильтруем только продукты с положительным вкладом (оставляем все)
                 val filteredItems = setItems.filter { it.contributesNorm > 0.0 }
                 if (filteredItems.isEmpty()) break
 
@@ -423,6 +424,4 @@ class RecommendController(private val productService: ProductService) {
         }
         return resultSets
     }
-
-
 }

@@ -6,6 +6,20 @@ spring:
     prefix: classpath:/templates/
     suffix: .html
 
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: Ov23liLfJfdXxzlmoWNL
+            client-secret: ec860d8057657a6ad32b35f000b7fecbdd6fb8aa
+            scope: read:user, user:email
 
 server:
   port: 8080
+  error:
+    path: /error
+    whitelabel:
+      enabled: false
+
+
