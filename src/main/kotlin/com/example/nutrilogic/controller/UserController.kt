@@ -32,7 +32,7 @@ class UserController(private val productService: ProductService) {
         var profile = session.getAttribute("userProfile") as? UserProfile
         if (profile == null) {
             profile = UserProfile().apply {
-                name = "Костин Николай Александрович"
+                name = "Плюшкин Валерий Николаевич"
                 gender = "male"
                 birthDate = LocalDate.parse("1988-08-27")
                 height = 181.0
