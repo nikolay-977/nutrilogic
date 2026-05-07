@@ -3,11 +3,8 @@ package com.example.nutrilogic.service
 import com.example.nutrilogic.entity.ProductEntity
 import com.example.nutrilogic.repository.ProductRepository
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import org.springframework.boot.context.event.ApplicationReadyEvent
-import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
-import java.io.File
 
 @Service
 class ProductService(
@@ -80,13 +77,16 @@ class ProductService(
         return result.sortedBy { it.name }.toMutableList()
     }
 
-    fun getAllNutrientNames(): List<String> = productRepository.findAll().flatMap { it.nutrients.keys }.distinct().sorted()
+    fun getAllNutrientNames(): List<String> =
+        productRepository.findAll().flatMap { it.nutrients.keys }.distinct().sorted()
 
     fun getUnitForNutrient(nutrientName: String): String? {
         val normalized = nutrientName.trim().lowercase()
         val allProducts = productRepository.findAll()
         for (product in allProducts) {
-            val entry = product.nutrients.entries.find { it.key.lowercase() == normalized || it.key.lowercase().contains(normalized) }
+            val entry = product.nutrients.entries.find {
+                it.key.lowercase() == normalized || it.key.lowercase().contains(normalized)
+            }
             if (entry != null && entry.value.unit.isNotBlank()) return entry.value.unit
         }
         return null

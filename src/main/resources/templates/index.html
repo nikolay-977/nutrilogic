@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>NutriLogic — рекомендации</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="container py-4">
 
@@ -23,127 +23,156 @@
 
 <div class="row justify-content-center">
     <div class="col-md-8">
-        <form action="/recommend" method="get" class="card p-4 shadow-sm mb-5">
+        <form action="/recommend" class="card p-4 shadow-sm mb-5" method="get">
             <div class="mb-3">
-                <label for="nutrientName" class="form-label">🔍 Введите нутриент</label>
-                <input type="text" class="form-control form-control-lg" id="nutrientName" name="nutrientName"
-                       list="nutrientList" th:value="${nutrientName}" placeholder="Железо, Кальций, Витамин B1 ...">
+                <label class="form-label" for="nutrientName">🔍 Введите нутриент</label>
+                <input class="form-control form-control-lg" id="nutrientName" list="nutrientList" name="nutrientName"
+                       placeholder="Железо, Кальций, Витамин B1 ..." th:value="${nutrientName}" type="text">
                 <datalist id="nutrientList">
                     <option th:each="n : ${nutrientList}" th:value="${n}"></option>
                 </datalist>
             </div>
             <div class="mb-3">
-                <label for="category" class="form-label">📂 Категория</label>
+                <label class="form-label" for="category">📂 Категория</label>
                 <select class="form-select" id="category" name="category">
                     <option value="">Все категории</option>
-                    <option th:each="c : ${categoryList}" th:value="${c}" th:text="${c}" th:selected="${c == selectedCategory}"></option>
+                    <option th:each="c : ${categoryList}" th:selected="${c == selectedCategory}" th:text="${c}"
+                            th:value="${c}"></option>
                 </select>
             </div>
             <div class="mb-3">
-                <label for="norm" class="form-label">🎯 Целевая норма</label>
-                <input type="number" step="0.1" class="form-control" id="norm" name="norm"
-                       th:value="${norm != null && norm > 0 ? norm : ''}" placeholder="например, 15">
+                <label class="form-label" for="norm">🎯 Целевая норма</label>
+                <input class="form-control" id="norm" name="norm" placeholder="например, 15" step="0.1"
+                       th:value="${norm != null && norm > 0 ? norm : ''}" type="number">
                 <div class="form-text">Значение, которое вы хотите покрыть (в <span th:text="${unit}"></span>)</div>
             </div>
             <div class="mb-3">
-                <label for="minNorm" class="form-label">📉 Минимальная норма (опционально)</label>
-                <input type="number" step="0.1" class="form-control" id="minNorm" name="minNorm"
-                       th:value="${minNorm != null && minNorm > 0 ? minNorm : ''}" placeholder="оставьте 0, если нет">
+                <label class="form-label" for="minNorm">📉 Минимальная норма (опционально)</label>
+                <input class="form-control" id="minNorm" name="minNorm" placeholder="оставьте 0, если нет" step="0.1"
+                       th:value="${minNorm != null && minNorm > 0 ? minNorm : ''}" type="number">
                 <div class="form-text">Нижний допустимый предел (0 – не используется)</div>
             </div>
             <div class="mb-3">
-                <label for="maxNorm" class="form-label">📈 Максимальная норма (опционально)</label>
-                <input type="number" step="0.1" class="form-control" id="maxNorm" name="maxNorm"
-                       th:value="${maxNorm != null && maxNorm > 0 ? maxNorm : ''}" placeholder="оставьте 0, если нет">
+                <label class="form-label" for="maxNorm">📈 Максимальная норма (опционально)</label>
+                <input class="form-control" id="maxNorm" name="maxNorm" placeholder="оставьте 0, если нет" step="0.1"
+                       th:value="${maxNorm != null && maxNorm > 0 ? maxNorm : ''}" type="number">
                 <div class="form-text">Если порция превысит этот предел – количество продукта будет уменьшено</div>
             </div>
             <div class="mb-3">
-                <label for="maxGramsPerProduct" class="form-label">⚖️ Макс. граммов на продукт (опционально)</label>
-                <input type="number" step="10" class="form-control" id="maxGramsPerProduct" name="maxGramsPerProduct"
-                       th:value="${maxGramsPerProduct != null && maxGramsPerProduct > 0 ? maxGramsPerProduct : ''}" placeholder="0 - без ограничений">
-                <div class="form-text">Если рассчитанная порция больше этого значения, она будет уменьшена до лимита.</div>
+                <label class="form-label" for="maxGramsPerProduct">⚖️ Макс. граммов на продукт (опционально)</label>
+                <input class="form-control" id="maxGramsPerProduct" name="maxGramsPerProduct" placeholder="0 - без ограничений" step="10"
+                       th:value="${maxGramsPerProduct != null && maxGramsPerProduct > 0 ? maxGramsPerProduct : ''}"
+                       type="number">
+                <div class="form-text">Если рассчитанная порция больше этого значения, она будет уменьшена до лимита.
+                </div>
             </div>
 
             <div class="mb-3">
                 <label class="form-label">📊 Сортировать по</label>
                 <div class="btn-group w-100" role="group">
-                    <a th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort='efficiency', page=0, size=${pageSize})}"
-                       class="btn btn-outline-primary" th:classappend="${selectedSort == 'efficiency'} ? 'active' : ''">⚡ Эффективности</a>
-                    <a th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort='coverage', page=0, size=${pageSize})}"
-                       class="btn btn-outline-primary" th:classappend="${selectedSort == 'coverage'} ? 'active' : ''">📈 Проценту покрытия</a>
+                    <a class="btn btn-outline-primary"
+                       th:classappend="${selectedSort == 'efficiency'} ? 'active' : ''" th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort='efficiency', page=0, size=${pageSize})}">⚡
+                        Эффективности</a>
+                    <a class="btn btn-outline-primary"
+                       th:classappend="${selectedSort == 'coverage'} ? 'active' : ''" th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort='coverage', page=0, size=${pageSize})}">📈
+                        Проценту покрытия</a>
                 </div>
-                <div class="form-text mt-1">Эффективность = содержание нутриента на 100г / ккал. Покрытие = % от целевой нормы.</div>
+                <div class="form-text mt-1">Эффективность = содержание нутриента на 100г / ккал. Покрытие = % от целевой
+                    нормы.
+                </div>
             </div>
 
-            <input type="hidden" name="size" th:value="${pageSize}">
-            <button type="submit" class="btn btn-success btn-lg">📊 Получить рекомендацию</button>
+            <input name="size" th:value="${pageSize}" type="hidden">
+            <button class="btn btn-success btn-lg" type="submit">📊 Получить рекомендацию</button>
         </form>
 
         <!-- Результаты -->
         <div th:if="${nutrientName != null and nutrientName != ''}">
             <div th:if="${recommendations != null and !recommendations.empty}">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="m-0">🥇 Продукты по <span th:text="${nutrientName}" class="text-success"></span></h3>
+                    <h3 class="m-0">🥇 Продукты по <span class="text-success" th:text="${nutrientName}"></span></h3>
                     <span class="badge bg-secondary">найдено: <strong th:text="${totalItems}"></strong></span>
                 </div>
                 <div class="list-group">
-                    <div th:each="item,stat : ${recommendations}" class="list-group-item rounded-3 shadow-sm mb-2">
+                    <div class="list-group-item rounded-3 shadow-sm mb-2" th:each="item,stat : ${recommendations}">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
-                                <span class="badge bg-secondary me-2" th:text="${stat.index + 1 + currentPage * pageSize}"></span>
+                                <span class="badge bg-secondary me-2"
+                                      th:text="${stat.index + 1 + currentPage * pageSize}"></span>
                                 <strong th:text="${item.product.name}"></strong>
-                                <a th:href="${item.product.url}" target="_blank" class="text-muted ms-2">🔗</a>
+                                <a class="text-muted ms-2" target="_blank" th:href="${item.product.url}">🔗</a>
                                 <span class="badge bg-light text-dark ms-2" th:text="${item.product.category}"></span>
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 <!-- Эффективность -->
-                                <span class="badge bg-info" title="Эффективность = содержание нутриента на 100г / ккал на 100г">
+                                <span class="badge bg-info"
+                                      title="Эффективность = содержание нутриента на 100г / ккал на 100г">
                                     💪 эфф: <span th:text="${#numbers.formatDecimal(item.effectiveness, 1, 4)}"></span>
                                 </span>
                                 <div class="btn-group" role="group">
                                     <!-- Кнопка избранное -->
-                                    <form action="/recommend/add-favorite" method="post" class="m-0">
-                                        <input type="hidden" name="productName" th:value="${item.product.name}">
-                                        <button type="submit" class="btn btn-sm" th:classappend="${favoriteProducts.contains(item.product.name)} ? 'btn-warning active' : 'btn-outline-warning'">
+                                    <form action="/recommend/add-favorite" class="m-0" method="post">
+                                        <input name="productName" th:value="${item.product.name}" type="hidden">
+                                        <button class="btn btn-sm" th:classappend="${favoriteProducts.contains(item.product.name)} ? 'btn-warning active' : 'btn-outline-warning'"
+                                                type="submit">
                                             ⭐
                                         </button>
                                     </form>
-                                    <form action="/recommend/add-banned" method="post" class="m-0">
-                                        <input type="hidden" name="productName" th:value="${item.product.name}">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">🚫</button>
+                                    <form action="/recommend/add-banned" class="m-0" method="post">
+                                        <input name="productName" th:value="${item.product.name}" type="hidden">
+                                        <button class="btn btn-sm btn-outline-danger" type="submit">🚫</button>
                                     </form>
                                 </div>
                             </div>
                         </div>
                         <div class="row text-muted small mt-2">
-                            <div class="col-4">🔥 Калории (100г): <span th:text="${#numbers.formatDecimal(item.caloriesPer100g, 1, 0)}"></span> ккал</div>
-                            <div class="col-4">🥦 Содержание в 100г: <span th:text="${#numbers.formatDecimal(item.nutrientValuePer100g, 1, 2)}"></span> <span th:text="${unit}"></span></div>
-                            <div class="col-4" th:if="${item.requiredGrams != null}">⚖️ Порция: <strong th:text="${#numbers.formatDecimal(item.requiredGrams, 1, 0)}"></strong> г</div>
+                            <div class="col-4">🔥 Калории (100г): <span
+                                    th:text="${#numbers.formatDecimal(item.caloriesPer100g, 1, 0)}"></span> ккал
+                            </div>
+                            <div class="col-4">🥦 Содержание в 100г: <span
+                                    th:text="${#numbers.formatDecimal(item.nutrientValuePer100g, 1, 2)}"></span> <span
+                                    th:text="${unit}"></span></div>
+                            <div class="col-4" th:if="${item.requiredGrams != null}">⚖️ Порция: <strong
+                                    th:text="${#numbers.formatDecimal(item.requiredGrams, 1, 0)}"></strong> г
+                            </div>
                         </div>
                         <div th:if="${norm != null and norm > 0 and item.requiredGrams != null}">
                             <div class="row small mt-2">
-                                <div class="col-12 text-primary">💡 Покрывает <strong th:text="${#numbers.formatDecimal(item.coveredPercent, 1, 1)}"></strong>% от целевой нормы (<span th:text="${norm}"></span> <span th:text="${unit}"></span>)</div>
-                                <div th:if="${item.isCapped}" class="col-12 text-warning mt-1">⚠️ Порция ограничена (максимальная норма или вес продукта)</div>
+                                <div class="col-12 text-primary">💡 Покрывает <strong
+                                        th:text="${#numbers.formatDecimal(item.coveredPercent, 1, 1)}"></strong>% от
+                                    целевой нормы (<span th:text="${norm}"></span> <span th:text="${unit}"></span>)
+                                </div>
+                                <div class="col-12 text-warning mt-1" th:if="${item.isCapped}">⚠️ Порция ограничена
+                                    (максимальная норма или вес продукта)
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Пагинация -->
-                <nav th:if="${totalPages > 1}" class="mt-4">
+                <nav class="mt-4" th:if="${totalPages > 1}">
                     <ul class="pagination justify-content-center">
                         <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled' : ''">
-                            <a class="page-link" th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=0, size=${pageSize})}">Первая</a>
+                            <a class="page-link"
+                               th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=0, size=${pageSize})}">Первая</a>
                         </li>
                         <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled' : ''">
-                            <a class="page-link" th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=${currentPage - 1}, size=${pageSize})}">← Пред.</a>
+                            <a class="page-link"
+                               th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=${currentPage - 1}, size=${pageSize})}">←
+                                Пред.</a>
                         </li>
-                        <li class="page-item disabled"><span class="page-link">Страница <span th:text="${currentPage + 1}"></span> из <span th:text="${totalPages}"></span></span></li>
-                        <li class="page-item" th:classappend="${currentPage == totalPages - 1} ? 'disabled' : ''">
-                            <a class="page-link" th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=${currentPage + 1}, size=${pageSize})}">След. →</a>
+                        <li class="page-item disabled"><span class="page-link">Страница <span
+                                th:text="${currentPage + 1}"></span> из <span th:text="${totalPages}"></span></span>
                         </li>
                         <li class="page-item" th:classappend="${currentPage == totalPages - 1} ? 'disabled' : ''">
-                            <a class="page-link" th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=${totalPages - 1}, size=${pageSize})}">Последняя</a>
+                            <a class="page-link"
+                               th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=${currentPage + 1}, size=${pageSize})}">След.
+                                →</a>
+                        </li>
+                        <li class="page-item" th:classappend="${currentPage == totalPages - 1} ? 'disabled' : ''">
+                            <a class="page-link"
+                               th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=${totalPages - 1}, size=${pageSize})}">Последняя</a>
                         </li>
                     </ul>
                 </nav>
@@ -151,17 +180,17 @@
                 <div class="d-flex justify-content-center gap-3 mt-3">
                     <span>Показывать на странице:</span>
                     <div class="btn-group">
-                        <a th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=0, size=10)}"
-                           class="btn btn-outline-secondary" th:classappend="${pageSize == 10} ? 'active' : ''">10</a>
-                        <a th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=0, size=20)}"
-                           class="btn btn-outline-secondary" th:classappend="${pageSize == 20} ? 'active' : ''">20</a>
-                        <a th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=0, size=50)}"
-                           class="btn btn-outline-secondary" th:classappend="${pageSize == 50} ? 'active' : ''">50</a>
+                        <a class="btn btn-outline-secondary"
+                           th:classappend="${pageSize == 10} ? 'active' : ''" th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=0, size=10)}">10</a>
+                        <a class="btn btn-outline-secondary"
+                           th:classappend="${pageSize == 20} ? 'active' : ''" th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=0, size=20)}">20</a>
+                        <a class="btn btn-outline-secondary"
+                           th:classappend="${pageSize == 50} ? 'active' : ''" th:href="@{/recommend(nutrientName=${nutrientName}, category=${selectedCategory}, norm=${norm}, minNorm=${minNorm}, maxNorm=${maxNorm}, maxGramsPerProduct=${maxGramsPerProduct}, sort=${selectedSort}, page=0, size=50)}">50</a>
                     </div>
                 </div>
             </div>
 
-            <div th:if="${recommendations != null and recommendations.empty}" class="alert alert-warning mt-4">
+            <div class="alert alert-warning mt-4" th:if="${recommendations != null and recommendations.empty}">
                 ❌ Не найдено продуктов с нутриентом «<span th:text="${nutrientName}"></span>» в выбранной категории.
             </div>
         </div>

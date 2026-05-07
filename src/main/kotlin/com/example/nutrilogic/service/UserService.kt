@@ -22,9 +22,6 @@ class UserService(
     fun getUserByGithubId(githubId: String): UserEntity? =
         userRepository.findByGithubId(githubId)
 
-    fun getUserById(id: Long): UserEntity? =
-        userRepository.findById(id).orElse(null)
-
     fun updateUser(user: UserEntity): UserEntity =
         userRepository.save(user)
 
@@ -62,11 +59,6 @@ class UserService(
         }
     }
 
-    fun isFavorite(user: UserEntity, productName: String): Boolean {
-        val product = productRepository.findByName(productName) ?: return false
-        return user.favoriteProducts.contains(product)
-    }
-
     // ==================== Чёрный список (запрещённые) ====================
 
     fun addBannedProduct(user: UserEntity, productName: String) {
@@ -86,11 +78,6 @@ class UserService(
             user.bannedProducts.remove(product)
             userRepository.save(user)
         }
-    }
-
-    fun isBanned(user: UserEntity, productName: String): Boolean {
-        val product = productRepository.findByName(productName) ?: return false
-        return user.bannedProducts.contains(product)
     }
 
     // ==================== Кастомные цели по нутриентам ====================
@@ -124,12 +111,4 @@ class UserService(
                 it.nutrientName to Triple(it.targetNorm, it.minNorm, it.maxNorm)
             }
     }
-
-    // ==================== Вспомогательные методы ====================
-
-    fun getAllFavoriteProducts(user: UserEntity): List<ProductEntity> =
-        user.favoriteProducts.toList()
-
-    fun getAllBannedProducts(user: UserEntity): List<ProductEntity> =
-        user.bannedProducts.toList()
 }

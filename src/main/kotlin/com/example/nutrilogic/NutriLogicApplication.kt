@@ -7,5 +7,5 @@ import org.springframework.boot.runApplication
 class NutriLogicApplication
 
 fun main(args: Array<String>) {
-	runApplication<NutriLogicApplication>(*args)
+    runApplication<NutriLogicApplication>(*args)
 }

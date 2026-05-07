@@ -8,7 +8,9 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.oauth2.core.user.OAuth2User
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestParam
 import java.time.LocalDate
 
 @Controller
@@ -98,10 +100,50 @@ class UserController(
         )
 
         val allNutrients = mutableListOf<NutrientProgress>()
-        allNutrients.add(NutrientProgress("Калории", user.targetCalories, totals["calories"] ?: 0.0, "ккал", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
-        allNutrients.add(NutrientProgress("Белки", user.targetProtein, totals["protein"] ?: 0.0, "г", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
-        allNutrients.add(NutrientProgress("Жиры", user.targetFat, totals["fat"] ?: 0.0, "г", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
-        allNutrients.add(NutrientProgress("Углеводы", user.targetCarbs, totals["carbs"] ?: 0.0, "г", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
+        allNutrients.add(
+            NutrientProgress(
+                "Калории",
+                user.targetCalories,
+                totals["calories"] ?: 0.0,
+                "ккал",
+                isCustom = false,
+                minNorm = 0.0,
+                maxNorm = 0.0
+            )
+        )
+        allNutrients.add(
+            NutrientProgress(
+                "Белки",
+                user.targetProtein,
+                totals["protein"] ?: 0.0,
+                "г",
+                isCustom = false,
+                minNorm = 0.0,
+                maxNorm = 0.0
+            )
+        )
+        allNutrients.add(
+            NutrientProgress(
+                "Жиры",
+                user.targetFat,
+                totals["fat"] ?: 0.0,
+                "г",
+                isCustom = false,
+                minNorm = 0.0,
+                maxNorm = 0.0
+            )
+        )
+        allNutrients.add(
+            NutrientProgress(
+                "Углеводы",
+                user.targetCarbs,
+                totals["carbs"] ?: 0.0,
+                "г",
+                isCustom = false,
+                minNorm = 0.0,
+                maxNorm = 0.0
+            )
+        )
 
         // Произвольные цели пользователя
         val customTargets = userService.getCustomTargets(user)
@@ -110,11 +152,22 @@ class UserController(
             val minNorm = norms.second
             val maxNorm = norms.third
             val consumed = diaryEntry.consumedProducts.sumOf { it.nutrients[name] ?: 0.0 }
-            allNutrients.add(NutrientProgress(name, target, consumed, "мг", isCustom = true, minNorm = minNorm, maxNorm = maxNorm))
+            allNutrients.add(
+                NutrientProgress(
+                    name,
+                    target,
+                    consumed,
+                    "мг",
+                    isCustom = true,
+                    minNorm = minNorm,
+                    maxNorm = maxNorm
+                )
+            )
         }
 
         val nutrientsWithStatus = allNutrients.map { nutrient ->
-            val progressPercent = if (nutrient.target > 0) (nutrient.consumed / nutrient.target * 100).coerceIn(0.0, 100.0) else 0.0
+            val progressPercent =
+                if (nutrient.target > 0) (nutrient.consumed / nutrient.target * 100).coerceIn(0.0, 100.0) else 0.0
             val (colorClass, statusText) = when {
                 nutrient.minNorm > 0 && nutrient.consumed < nutrient.minNorm -> "bg-warning" to "⚠️ Ниже минимума"
                 nutrient.consumed < nutrient.target -> "bg-info" to "⚡ Ниже цели"

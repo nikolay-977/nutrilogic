@@ -5,5 +5,4 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface ProductRepository : JpaRepository<ProductEntity, Long> {
     fun findByName(name: String): ProductEntity?
-    fun findAllByNameIn(names: List<String>): List<ProductEntity>
 }

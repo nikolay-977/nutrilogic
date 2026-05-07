@@ -9,9 +9,10 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.oauth2.core.user.OAuth2User
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
-import org.springframework.web.bind.annotation.*
-import kotlin.collections.filter
-import kotlin.collections.map
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestHeader
+import org.springframework.web.bind.annotation.RequestParam
 
 @Controller
 class RecommendController(
@@ -120,7 +121,8 @@ class RecommendController(
             return "index"
         }
 
-        val allRecommendationsRaw = productService.recommendProductsAll(nutrientName, if (category.isBlank()) null else category)
+        val allRecommendationsRaw =
+            productService.recommendProductsAll(nutrientName, if (category.isBlank()) null else category)
         val filteredRaw = allRecommendationsRaw.filter { (product, _) -> product.name !in bannedProductNames }
 
         val allRecommendations = filteredRaw.mapNotNull { (product, effectiveness) ->

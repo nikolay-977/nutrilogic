@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>NutriLogic — Профиль</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="container py-4">
 
@@ -23,42 +23,42 @@
 
 <div class="row justify-content-center">
     <div class="col-md-8">
-        <form action="/profile/save" method="post" class="card p-4 shadow-sm">
+        <form action="/profile/save" class="card p-4 shadow-sm" method="post">
             <h4 class="mb-3">Основные данные</h4>
             <div class="mb-3">
                 <label>Имя</label>
-                <input type="text" name="name" class="form-control" th:value="${profile.name}" required>
+                <input class="form-control" name="name" required th:value="${profile.name}" type="text">
             </div>
             <div class="mb-3">
                 <label>Пол</label>
-                <select name="gender" class="form-select">
-                    <option value="male" th:selected="${profile.gender == 'male'}">Мужской</option>
-                    <option value="female" th:selected="${profile.gender == 'female'}">Женский</option>
+                <select class="form-select" name="gender">
+                    <option th:selected="${profile.gender == 'male'}" value="male">Мужской</option>
+                    <option th:selected="${profile.gender == 'female'}" value="female">Женский</option>
                 </select>
             </div>
             <div class="mb-3">
                 <label>Дата рождения</label>
-                <input type="date" name="birthDate" class="form-control"
-                       th:value="${profile.birthDate != null ? #temporals.format(profile.birthDate, 'yyyy-MM-dd') : ''}">
+                <input class="form-control" name="birthDate" th:value="${profile.birthDate != null ? #temporals.format(profile.birthDate, 'yyyy-MM-dd') : ''}"
+                       type="date">
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label>Рост (см)</label>
-                    <input type="number" step="1" name="height" class="form-control" th:value="${profile.height}">
+                    <input class="form-control" name="height" step="1" th:value="${profile.height}" type="number">
                 </div>
                 <div class="col-md-6 mb-3">
                     <label>Вес (кг)</label>
-                    <input type="number" step="0.1" name="weight" class="form-control" th:value="${profile.weight}">
+                    <input class="form-control" name="weight" step="0.1" th:value="${profile.weight}" type="number">
                 </div>
             </div>
             <div class="mb-3">
                 <label>Уровень активности</label>
-                <select name="activityLevel" class="form-select">
-                    <option value="sedentary" th:selected="${profile.activityLevel == 'sedentary'}">Сидячий</option>
-                    <option value="light" th:selected="${profile.activityLevel == 'light'}">Лёгкий</option>
-                    <option value="moderate" th:selected="${profile.activityLevel == 'moderate'}">Умеренный</option>
-                    <option value="active" th:selected="${profile.activityLevel == 'active'}">Активный</option>
-                    <option value="very_active" th:selected="${profile.activityLevel == 'very_active'}">Очень активный
+                <select class="form-select" name="activityLevel">
+                    <option th:selected="${profile.activityLevel == 'sedentary'}" value="sedentary">Сидячий</option>
+                    <option th:selected="${profile.activityLevel == 'light'}" value="light">Лёгкий</option>
+                    <option th:selected="${profile.activityLevel == 'moderate'}" value="moderate">Умеренный</option>
+                    <option th:selected="${profile.activityLevel == 'active'}" value="active">Активный</option>
+                    <option th:selected="${profile.activityLevel == 'very_active'}" value="very_active">Очень активный
                     </option>
                 </select>
             </div>
@@ -67,30 +67,31 @@
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label>Калории (ккал)</label>
-                    <input type="number" step="10" name="targetCalories" class="form-control"
-                           th:value="${profile.targetCalories}">
+                    <input class="form-control" name="targetCalories" step="10" th:value="${profile.targetCalories}"
+                           type="number">
                 </div>
                 <div class="col-md-6 mb-3">
                     <label>Белки (г)</label>
-                    <input type="number" step="1" name="targetProtein" class="form-control"
-                           th:value="${profile.targetProtein}">
+                    <input class="form-control" name="targetProtein" step="1" th:value="${profile.targetProtein}"
+                           type="number">
                 </div>
                 <div class="col-md-6 mb-3">
                     <label>Жиры (г)</label>
-                    <input type="number" step="1" name="targetFat" class="form-control" th:value="${profile.targetFat}">
+                    <input class="form-control" name="targetFat" step="1" th:value="${profile.targetFat}" type="number">
                 </div>
                 <div class="col-md-6 mb-3">
                     <label>Углеводы (г)</label>
-                    <input type="number" step="1" name="targetCarbs" class="form-control"
-                           th:value="${profile.targetCarbs}">
+                    <input class="form-control" name="targetCarbs" step="1" th:value="${profile.targetCarbs}"
+                           type="number">
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-primary w-100 mt-3">Сохранить профиль</button>
+            <button class="btn btn-primary w-100 mt-3" type="submit">Сохранить профиль</button>
             <hr>
             <hr>
-            <a href="/profile/preferences" class="btn btn-outline-secondary w-100">⭐ Управление избранным и стоп-листом</a>
-            <a href="/content-management" class="btn btn-outline-secondary w-100 mt-2">📦 Управление контентом</a>
+            <a class="btn btn-outline-secondary w-100" href="/profile/preferences">⭐ Управление избранным и
+                стоп-листом</a>
+            <a class="btn btn-outline-secondary w-100 mt-2" href="/content-management">📦 Управление контентом</a>
         </form>
     </div>
 </div>

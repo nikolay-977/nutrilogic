@@ -3,7 +3,9 @@ package com.example.nutrilogic.controller
 import com.example.nutrilogic.service.ProductService
 import jakarta.servlet.http.HttpSession
 import org.springframework.stereotype.Controller
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 
 @Controller
 @RequestMapping("/preferences")
@@ -54,7 +56,11 @@ class PreferenceController(private val productService: ProductService) {
     }
 
     @PostMapping("/update-favorite-priority")
-    fun updateFavoritePriority(@RequestParam productName: String, @RequestParam newPriority: Int, session: HttpSession): String {
+    fun updateFavoritePriority(
+        @RequestParam productName: String,
+        @RequestParam newPriority: Int,
+        session: HttpSession
+    ): String {
         val favorites = session.getAttribute("favorites") as? MutableList<Pair<String, Int>> ?: mutableListOf()
         val index = favorites.indexOfFirst { it.first == productName }
         if (index >= 0) {

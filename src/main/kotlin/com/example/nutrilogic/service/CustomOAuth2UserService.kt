@@ -23,7 +23,8 @@ class CustomOAuth2UserService(
         attributes["appUserId"] = appUser.id
 
         // Получаем имя атрибута из регистрации клиента
-        val userNameAttributeName = userRequest.clientRegistration.providerDetails.userInfoEndpoint.userNameAttributeName
+        val userNameAttributeName =
+            userRequest.clientRegistration.providerDetails.userInfoEndpoint.userNameAttributeName
         return DefaultOAuth2User(oauth2User.authorities, attributes, userNameAttributeName)
     }
 }

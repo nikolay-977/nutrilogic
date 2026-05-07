@@ -13,3 +13,11 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
   liquibase:
     enabled: true
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: Ov23liLfJfdXxzlmoWNL
+            client-secret: 2c9eada183a7ca8413b48b9d92062d0cba09cc16
+            scope: read:user, user:email

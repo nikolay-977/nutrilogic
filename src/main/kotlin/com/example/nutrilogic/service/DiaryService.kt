@@ -94,18 +94,4 @@ class DiaryService(
             diaryEntryRepository.delete(it)
         }
     }
-
-    /**
-     * Получить все consumed продукты за конкретный день (без группировки)
-     */
-    fun getConsumedProductsForDay(user: UserEntity, date: LocalDate): List<ConsumedProductEntity> {
-        return diaryEntryRepository.findByUserAndDate(user, date)?.consumedProducts ?: emptyList()
-    }
-
-    /**
-     * Получить сумму потреблённого нутриента за день
-     */
-    fun getTotalNutrientForDay(user: UserEntity, date: LocalDate, nutrientName: String): Double {
-        return getConsumedProductsForDay(user, date).sumOf { it.nutrients[nutrientName] ?: 0.0 }
-    }
 }
