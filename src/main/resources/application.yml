@@ -6,7 +6,7 @@ spring:
     prefix: classpath:/templates/
     suffix: .html
   datasource:
-    url: jdbc:postgresql://postgres:5432/nutrilogic
+    url: jdbc:postgresql://localhost:5432/nutrilogic
     username: nutrilogic_user
     password: your_password_here
     driver-class-name: org.postgresql.Driver
@@ -27,9 +27,13 @@ spring:
       client:
         registration:
           github:
-            client-id: Ov23liJeaJnLLgSj48Xx
-            client-secret: 08a83388240db2aa789217e3c752404d06045f03
+            client-id: Ov23liLfJfdXxzlmoWNL
+            client-secret: d02f205a520f5240a6599b077c0f0f12c2134a93
             scope: read:user, user:email
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
 
 server:
   port: 8080

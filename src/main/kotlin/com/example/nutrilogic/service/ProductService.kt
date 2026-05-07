@@ -6,52 +6,43 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
+import org.springframework.web.multipart.MultipartFile
 import java.io.File
 
 @Service
 class ProductService(
     private val productRepository: ProductRepository
 ) {
-
-    @EventListener(ApplicationReadyEvent::class)
-    fun loadProductsFromJson() {
-        val dataDir = File("data/full_products")
-        if (!dataDir.exists()) {
-            println("⚠️ Папка data/full_products не найдена")
-            return
-        }
+    fun uploadProductFromJson(file: MultipartFile): String {
         val mapper = jacksonObjectMapper()
-        var loadedCount = 0
-        dataDir.listFiles { file -> file.extension == "json" }?.forEach { jsonFile ->
-            try {
-                val jsonNode = mapper.readTree(jsonFile)
-                val name = jsonNode.get("name").asText()
-                // Проверяем, существует ли уже продукт с таким именем
-                if (productRepository.findByName(name) != null) {
-                    return@forEach // пропускаем
-                }
-                val url = jsonNode.get("url").asText()
-                val category = jsonNode.get("category")?.asText() ?: ""
-                val nutrientsMap = mutableMapOf<String, ProductEntity.NutrientValue>()
-                val nutrientsNode = jsonNode.get("nutrients")
-                nutrientsNode.fields().asSequence().forEach { (key, valueNode) ->
-                    val value = valueNode.get("value").asText()
-                    val unit = valueNode.get("unit").asText()
-                    nutrientsMap[key] = ProductEntity.NutrientValue(value, unit)
-                }
-                val product = ProductEntity(
-                    name = name,
-                    url = url,
-                    category = category,
-                    nutrients = nutrientsMap
-                )
-                productRepository.save(product)
-                loadedCount++
-            } catch (e: Exception) {
-                println("Ошибка чтения ${jsonFile.name}: ${e.message}")
-            }
+        val jsonNode = mapper.readTree(file.inputStream)
+        val name = jsonNode.get("name")?.asText() ?: return "Отсутствует поле 'name'"
+
+        // Проверяем, существует ли продукт
+        val existing = productRepository.findByName(name)
+        if (existing != null) {
+            return "Продукт '$name' уже существует"
         }
-        println("✅ Загружено $loadedCount новых продуктов (всего ${productRepository.count()})")
+
+        val url = jsonNode.get("url")?.asText() ?: ""
+        val category = jsonNode.get("category")?.asText() ?: ""
+
+        val nutrientsMap = mutableMapOf<String, ProductEntity.NutrientValue>()
+        val nutrientsNode = jsonNode.get("nutrients")
+        nutrientsNode?.fields()?.asSequence()?.forEach { (key, valueNode) ->
+            val value = valueNode.get("value")?.asText() ?: ""
+            val unit = valueNode.get("unit")?.asText() ?: ""
+            nutrientsMap[key] = ProductEntity.NutrientValue(value, unit)
+        }
+
+        val product = ProductEntity(
+            name = name,
+            url = url,
+            category = category,
+            nutrients = nutrientsMap
+        )
+        productRepository.save(product)
+        return "Продукт '$name' успешно загружен"
     }
 
     fun recommendProductsAll(nutrientQuery: String, category: String? = null): List<Pair<ProductEntity, Double>> {

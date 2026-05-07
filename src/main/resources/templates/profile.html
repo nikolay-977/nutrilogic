@@ -38,7 +38,8 @@
             </div>
             <div class="mb-3">
                 <label>Дата рождения</label>
-                <input type="date" name="birthDate" class="form-control" th:value="${profile.birthDate != null ? #temporals.format(profile.birthDate, 'yyyy-MM-dd') : ''}">
+                <input type="date" name="birthDate" class="form-control"
+                       th:value="${profile.birthDate != null ? #temporals.format(profile.birthDate, 'yyyy-MM-dd') : ''}">
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
@@ -57,7 +58,8 @@
                     <option value="light" th:selected="${profile.activityLevel == 'light'}">Лёгкий</option>
                     <option value="moderate" th:selected="${profile.activityLevel == 'moderate'}">Умеренный</option>
                     <option value="active" th:selected="${profile.activityLevel == 'active'}">Активный</option>
-                    <option value="very_active" th:selected="${profile.activityLevel == 'very_active'}">Очень активный</option>
+                    <option value="very_active" th:selected="${profile.activityLevel == 'very_active'}">Очень активный
+                    </option>
                 </select>
             </div>
 
@@ -65,11 +67,13 @@
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label>Калории (ккал)</label>
-                    <input type="number" step="10" name="targetCalories" class="form-control" th:value="${profile.targetCalories}">
+                    <input type="number" step="10" name="targetCalories" class="form-control"
+                           th:value="${profile.targetCalories}">
                 </div>
                 <div class="col-md-6 mb-3">
                     <label>Белки (г)</label>
-                    <input type="number" step="1" name="targetProtein" class="form-control" th:value="${profile.targetProtein}">
+                    <input type="number" step="1" name="targetProtein" class="form-control"
+                           th:value="${profile.targetProtein}">
                 </div>
                 <div class="col-md-6 mb-3">
                     <label>Жиры (г)</label>
@@ -77,13 +81,16 @@
                 </div>
                 <div class="col-md-6 mb-3">
                     <label>Углеводы (г)</label>
-                    <input type="number" step="1" name="targetCarbs" class="form-control" th:value="${profile.targetCarbs}">
+                    <input type="number" step="1" name="targetCarbs" class="form-control"
+                           th:value="${profile.targetCarbs}">
                 </div>
             </div>
 
             <button type="submit" class="btn btn-primary w-100 mt-3">Сохранить профиль</button>
             <hr>
+            <hr>
             <a href="/profile/preferences" class="btn btn-outline-secondary w-100">⭐ Управление избранным и стоп-листом</a>
+            <a href="/content-management" class="btn btn-outline-secondary w-100 mt-2">📦 Управление контентом</a>
         </form>
     </div>
 </div>
