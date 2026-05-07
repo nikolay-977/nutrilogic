@@ -27,8 +27,8 @@ spring:
       client:
         registration:
           github:
-            client-id: Ov23liLfJfdXxzlmoWNL
-            client-secret: d02f205a520f5240a6599b077c0f0f12c2134a93
+            client-id: Ov23liJeaJnLLgSj48Xx
+            client-secret: f6180480361b6e9cdc04b60c82a2a814b2d7bad9
             scope: read:user, user:email
   servlet:
     multipart:
