@@ -2,7 +2,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import java.io.File
 
-fun main() {
+fun migrateData() {
     val mapper = ObjectMapper().registerKotlinModule()
     val dataDir = File("data/full_products")
     dataDir.listFiles { f -> f.extension == "json" }?.forEach { file ->
