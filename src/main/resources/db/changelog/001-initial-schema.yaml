@@ -1,0 +1,68 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1
+      author: nutrilogic
+      changes:
+        - createTable:
+            tableName: users
+            columns:
+              - column: { name: id, type: bigint, autoIncrement: true, constraints: { primaryKey: true } }
+              - column: { name: github_id, type: varchar(255), constraints: { nullable: false, unique: true } }
+              - column: { name: username, type: varchar(255), constraints: { nullable: false } }
+              - column: { name: name, type: varchar(255) }
+              - column: { name: gender, type: varchar(50) }
+              - column: { name: birth_date, type: date }
+              - column: { name: height, type: float8 }
+              - column: { name: weight, type: float8 }
+              - column: { name: activity_level, type: varchar(50) }
+              - column: { name: target_calories, type: float8 }
+              - column: { name: target_protein, type: float8 }
+              - column: { name: target_fat, type: float8 }
+              - column: { name: target_carbs, type: float8 }
+        - createTable:
+            tableName: products
+            columns:
+              - column: { name: id, type: bigint, autoIncrement: true, constraints: { primaryKey: true } }
+              - column: { name: name, type: varchar(255), constraints: { nullable: false, unique: true } }
+              - column: { name: url, type: varchar(512), constraints: { nullable: false } }
+              - column: { name: category, type: varchar(255) }
+              - column: { name: nutrients, type: jsonb }
+        - createTable:
+            tableName: diary_entries
+            columns:
+              - column: { name: id, type: bigint, autoIncrement: true, constraints: { primaryKey: true } }
+              - column: { name: user_id, type: bigint, constraints: { nullable: false, foreignKeyName: fk_diary_user, references: users(id) } }
+              - column: { name: date, type: date, constraints: { nullable: false } }
+        - createTable:
+            tableName: consumed_products
+            columns:
+              - column: { name: id, type: bigint, autoIncrement: true, constraints: { primaryKey: true } }
+              - column: { name: diary_entry_id, type: bigint, constraints: { nullable: false, foreignKeyName: fk_consumed_diary, references: diary_entries(id) } }
+              - column: { name: product_id, type: bigint, constraints: { nullable: false, foreignKeyName: fk_consumed_product, references: products(id) } }
+              - column: { name: quantity, type: float8, constraints: { nullable: false } }
+              - column: { name: meal_type, type: varchar(50), constraints: { nullable: false } }
+              - column: { name: calories, type: float8, constraints: { nullable: false } }
+              - column: { name: nutrients, type: jsonb }
+        - createTable:
+            tableName: custom_targets
+            columns:
+              - column: { name: id, type: bigint, autoIncrement: true, constraints: { primaryKey: true } }
+              - column: { name: user_id, type: bigint, constraints: { nullable: false, foreignKeyName: fk_target_user, references: users(id) } }
+              - column: { name: nutrient_name, type: varchar(255), constraints: { nullable: false } }
+              - column: { name: target_norm, type: float8, constraints: { nullable: false } }
+              - column: { name: min_norm, type: float8 }
+              - column: { name: max_norm, type: float8 }
+        - createTable:
+            tableName: user_favorite_products
+            columns:
+              - column: { name: user_id, type: bigint, constraints: { foreignKeyName: fk_fav_user, references: users(id) } }
+              - column: { name: product_id, type: bigint, constraints: { foreignKeyName: fk_fav_product, references: products(id) } }
+        - createTable:
+            tableName: user_banned_products
+            columns:
+              - column: { name: user_id, type: bigint, constraints: { foreignKeyName: fk_ban_user, references: users(id) } }
+              - column: { name: product_id, type: bigint, constraints: { foreignKeyName: fk_ban_product, references: products(id) } }
+        - addUniqueConstraint:
+            tableName: diary_entries
+            constraintName: uk_diary_user_date
+            columnNames: user_id, date

@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nutrilogic-postgres
+    environment:
+      POSTGRES_DB: nutrilogic
+      POSTGRES_USER: nutrilogic_user
+      POSTGRES_PASSWORD: your_password_here
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - nutrilogic-net
+
+  app:
+    build: .
+    container_name: nutrilogic-app
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/nutrilogic
+      SPRING_DATASOURCE_USERNAME: nutrilogic_user
+      SPRING_DATASOURCE_PASSWORD: your_password_here
+    networks:
+      - nutrilogic-net
+
+volumes:
+  postgres_data:
+
+networks:
+  nutrilogic-net:

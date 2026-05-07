@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>NutriLogic — Дашборд</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .progress-bar-custom {
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body class="container py-4">
+
+<div class="text-center mb-5">
+    <h1 class="display-5 fw-bold">🥗 NutriLogic</h1>
+    <p class="lead">Ваш прогресс сегодня</p>
+</div>
+
+<ul class="nav nav-tabs justify-content-center mb-4">
+    <li class="nav-item"><a class="nav-link active" href="/dashboard">📊 Дашборд</a></li>
+    <li class="nav-item"><a class="nav-link" href="/diary">📓 Дневник</a></li>
+    <li class="nav-item"><a class="nav-link" href="/search">🔍 Поиск</a></li>
+    <li class="nav-item"><a class="nav-link" href="/recommend">📊 Рекомендации</a></li>
+    <li class="nav-item"><a class="nav-link" href="/meal-planner">🍽️ Планировщик</a></li>
+    <li class="nav-item"><a class="nav-link" href="/profile">👤 Профиль</a></li>
+</ul>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <!-- Карточка прогресса -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Добро пожаловать, <span th:text="${profile.name}"></span>!</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4" th:each="nutrient : ${nutrients}">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <div>
+                            <strong th:text="${nutrient.name}"></strong>
+                            <span class="badge bg-secondary ms-2"
+                                  th:text="${#numbers.formatDecimal(nutrient.consumed, 1, 1)} + ' / ' + ${#numbers.formatDecimal(nutrient.target, 1, 1)} + ' ' + ${nutrient.unit}"></span>
+                            <small class="text-muted ms-2" th:text="${nutrient.statusText}"></small>
+                        </div>
+                        <form action="/dashboard/remove-custom-target" class="d-inline" method="post"
+                              th:if="${nutrient.isCustom}">
+                            <input name="nutrientName" th:value="${nutrient.name}" type="hidden">
+                            <button class="btn btn-sm btn-outline-danger" title="Удалить нутриент" type="submit">🗑️
+                            </button>
+                        </form>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar progress-bar-custom" role="progressbar"
+                             th:attr="aria-valuenow=${nutrient.consumed}, aria-valuemin=0, aria-valuemax=${nutrient.target}"
+                             th:classappend="${nutrient.colorClass}"
+                             th:style="'width: ' + ${nutrient.progressPercent} + '%'">
+                            <span th:text="${#numbers.formatDecimal(nutrient.progressPercent, 1, 0)} + '%'"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Карточка добавления нового нутриента -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">➕ Добавить витамин / минерал</h5>
+            </div>
+            <div class="card-body">
+                <form action="/dashboard/add-custom-target" class="row g-2 align-items-end" method="post">
+                    <div class="col-md-12">
+                        <label>Название нутриента</label>
+                        <input class="form-control" name="nutrientName" placeholder="Например, Калий, K" required
+                               type="text">
+                    </div>
+                    <div class="col-md-3">
+                        <label>Целевая норма</label>
+                        <input class="form-control" name="targetNorm" placeholder="мг/г/мкг" required step="0.1"
+                               type="number">
+                    </div>
+                    <div class="col-md-3">
+                        <label>Минимальная норма</label>
+                        <input class="form-control" name="minNorm" step="0.1" type="number" value="0">
+                    </div>
+                    <div class="col-md-3">
+                        <label>Максимальная норма</label>
+                        <input class="form-control" name="maxNorm" step="0.1" type="number" value="0">
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-success w-100" type="submit">➕ Добавить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer class="mt-5 text-center text-muted small">
+    🟡 ниже минимума &nbsp;|&nbsp; 🔵 ниже цели &nbsp;|&nbsp; 🟢 достигнуто &nbsp;|&nbsp; 🔴 превышение
+</footer>
+</body>
+</html>

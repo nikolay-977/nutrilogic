@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Управление контентом</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="container py-4">
+
+<h1 class="mb-4">📦 Управление контентом</h1>
+
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">Загрузить продукты</div>
+    <div class="card-body">
+        <form action="/content-management/upload" enctype="multipart/form-data" method="post">
+            <div class="mb-3">
+                <label class="form-label" for="files">Выберите JSON-файлы (можно несколько)</label>
+                <input accept=".json" class="form-control" id="files" multiple name="files" required type="file">
+            </div>
+            <button class="btn btn-success" type="submit">📤 Загрузить контент</button>
+        </form>
+    </div>
+</div>
+
+<!-- Отображение результатов -->
+<div class="card mb-4" th:if="${uploadResults != null}">
+    <div class="card-header">Результаты загрузки</div>
+    <div class="card-body">
+        <p>✅ Успешно: <span th:text="${successCount}"></span> | ❌ Ошибок: <span th:text="${errorCount}"></span></p>
+        <ul>
+            <li th:each="result : ${uploadResults}" th:text="${result}"></li>
+        </ul>
+    </div>
+</div>
+
+<a class="btn btn-secondary" href="/profile">← Назад в профиль</a>
+
+</body>
+</html>
