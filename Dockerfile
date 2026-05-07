@@ -5,12 +5,9 @@ COPY . .
 RUN gradle build --no-daemon -x test
 
 # Второй этап: запуск
-FROM openjdk:17-jdk-slim
+FROM amazoncorretto:17-alpine
 WORKDIR /app
-COPY --from=build /app/build/libs/*.jar app.jar
-# Создаём папку для данных (если ещё нет)
 RUN mkdir -p /app/data/full_products
-# Открываем порт приложения
+COPY --from=build /app/build/libs/*.jar app.jar
 EXPOSE 8080
-# Запуск
 ENTRYPOINT ["java", "-jar", "app.jar"]
