@@ -1,15 +1,23 @@
 package com.example.nutrilogic.controller
 
-import com.example.nutrilogic.model.Product
-import com.example.nutrilogic.model.UserProfile
+import com.example.nutrilogic.entity.ProductEntity
+import com.example.nutrilogic.entity.UserEntity
 import com.example.nutrilogic.service.ProductService
+import com.example.nutrilogic.service.UserService
 import jakarta.servlet.http.HttpSession
+import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.oauth2.core.user.OAuth2User
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.web.bind.annotation.*
+import kotlin.collections.filter
+import kotlin.collections.map
 
 @Controller
-class RecommendController(private val productService: ProductService) {
+class RecommendController(
+    private val productService: ProductService,
+    private val userService: UserService
+) {
 
     data class RequirementDto(
         val nutrientName: String,
@@ -21,7 +29,7 @@ class RecommendController(private val productService: ProductService) {
     )
 
     data class RecommendationItem(
-        val product: Product,
+        val product: ProductEntity,
         val effectiveness: Double,
         val requiredGrams: Double?,
         val coveredPercent: Double?,
@@ -31,12 +39,12 @@ class RecommendController(private val productService: ProductService) {
     )
 
     data class MealItem(
-        val product: Product,
+        val product: ProductEntity,
         val requiredGrams: Double,
         val nutrientName: String,
         val contributesNorm: Double,
         val unit: String?,
-        val contributions: Map<String, Double> = emptyMap()   // <-- новое поле
+        val contributions: Map<String, Double> = emptyMap()
     )
 
     data class RequirementCoverage(
@@ -57,13 +65,12 @@ class RecommendController(private val productService: ProductService) {
         fun copy(id: Int) = MealSetDto(id, items, totalCalories, coverages)
     }
 
-    private fun getProfile(session: HttpSession): UserProfile {
-        var profile = session.getAttribute("userProfile") as? UserProfile
-        if (profile == null) {
-            profile = UserProfile()
-            session.setAttribute("userProfile", profile)
-        }
-        return profile
+    private fun getCurrentUser(): UserEntity {
+        val authentication = SecurityContextHolder.getContext().authentication
+        val principal = authentication.principal as OAuth2User
+        val githubId = principal.getAttribute<Any>("id").toString().toString()
+        return userService.getUserByGithubId(githubId)
+            ?: throw IllegalStateException("User not found in DB")
     }
 
     @GetMapping("/")
@@ -80,10 +87,10 @@ class RecommendController(private val productService: ProductService) {
         @RequestParam(name = "sort", required = false, defaultValue = "efficiency") sort: String,
         @RequestParam(name = "page", defaultValue = "0") page: Int,
         @RequestParam(name = "size", defaultValue = "10") size: Int,
-        model: Model,
-        session: HttpSession
+        model: Model
     ): String {
-        val profile = getProfile(session)
+        val user = getCurrentUser()
+        val bannedProductNames = user.bannedProducts.map { it.name }.toSet()
 
         val nutrientList = productService.getAllNutrientNames()
         val categoryList = productService.getAllCategoryNames()
@@ -96,7 +103,7 @@ class RecommendController(private val productService: ProductService) {
         model.addAttribute("maxNorm", maxNorm)
         model.addAttribute("maxGramsPerProduct", maxGramsPerProduct)
         model.addAttribute("selectedSort", sort)
-        model.addAttribute("favoriteProducts", profile.favoriteProducts)
+        model.addAttribute("favoriteProducts", user.favoriteProducts.map { it.name })
 
         var unit: String? = null
         if (nutrientName.isNotBlank()) {
@@ -114,7 +121,7 @@ class RecommendController(private val productService: ProductService) {
         }
 
         val allRecommendationsRaw = productService.recommendProductsAll(nutrientName, if (category.isBlank()) null else category)
-        val filteredRaw = allRecommendationsRaw.filter { (product, _) -> !profile.bannedProducts.contains(product.name) }
+        val filteredRaw = allRecommendationsRaw.filter { (product, _) -> product.name !in bannedProductNames }
 
         val allRecommendations = filteredRaw.mapNotNull { (product, effectiveness) ->
             val nutrientValue = product.getNutrientValue(nutrientName) ?: return@mapNotNull null
@@ -175,49 +182,40 @@ class RecommendController(private val productService: ProductService) {
     @PostMapping("/recommend/add-favorite")
     fun addFavorite(
         @RequestParam productName: String,
-        @RequestHeader(value = "referer", required = false) referer: String?,
-        session: HttpSession
+        @RequestHeader(value = "referer", required = false) referer: String?
     ): String {
-        val profile = getProfile(session)
-        profile.favoriteProducts.add(productName)
-        session.setAttribute("userProfile", profile)
+        val user = getCurrentUser()
+        userService.addFavoriteProduct(user, productName)
         return "redirect:${referer ?: "/recommend"}"
     }
 
     @PostMapping("/recommend/remove-favorite")
     fun removeFavorite(
         @RequestParam productName: String,
-        @RequestHeader(value = "referer", required = false) referer: String?,
-        session: HttpSession
+        @RequestHeader(value = "referer", required = false) referer: String?
     ): String {
-        val profile = getProfile(session)
-        profile.favoriteProducts.remove(productName)
-        session.setAttribute("userProfile", profile)
+        val user = getCurrentUser()
+        userService.removeFavoriteProduct(user, productName)
         return "redirect:${referer ?: "/recommend"}"
     }
 
     @PostMapping("/recommend/add-banned")
     fun addBanned(
         @RequestParam productName: String,
-        @RequestHeader(value = "referer", required = false) referer: String?,
-        session: HttpSession
+        @RequestHeader(value = "referer", required = false) referer: String?
     ): String {
-        val profile = getProfile(session)
-        profile.bannedProducts.add(productName)
-        profile.favoriteProducts.remove(productName)
-        session.setAttribute("userProfile", profile)
+        val user = getCurrentUser()
+        userService.addBannedProduct(user, productName)
         return "redirect:${referer ?: "/recommend"}"
     }
 
     @PostMapping("/recommend/remove-banned")
     fun removeBanned(
         @RequestParam productName: String,
-        @RequestHeader(value = "referer", required = false) referer: String?,
-        session: HttpSession
+        @RequestHeader(value = "referer", required = false) referer: String?
     ): String {
-        val profile = getProfile(session)
-        profile.bannedProducts.remove(productName)
-        session.setAttribute("userProfile", profile)
+        val user = getCurrentUser()
+        userService.removeBannedProduct(user, productName)
         return "redirect:${referer ?: "/recommend"}"
     }
 
@@ -226,14 +224,14 @@ class RecommendController(private val productService: ProductService) {
         @RequestParam(name = "name", required = false, defaultValue = "") name: String,
         @RequestParam(name = "category", required = false, defaultValue = "") category: String,
         @RequestParam(name = "sort", required = false, defaultValue = "efficiency") sort: String,
-        model: Model,
-        session: HttpSession
+        model: Model
     ): String {
-        val profile = getProfile(session)
+        val user = getCurrentUser()
+        val bannedProductNames = user.bannedProducts.map { it.name }.toSet()
         var allProducts = productService.searchProducts(name, if (category.isBlank()) null else category)
-        allProducts = allProducts.filter { !profile.bannedProducts.contains(it.name) }.toMutableList()
+        allProducts = allProducts.filter { it.name !in bannedProductNames }.toMutableList()
 
-        data class ProductWithEfficiency(val product: Product, val efficiency: Double)
+        data class ProductWithEfficiency(val product: ProductEntity, val efficiency: Double)
 
         val productsWithEfficiency = allProducts.map { product ->
             val protein = product.getNutrientValue("Белки") ?: 0.0
@@ -254,7 +252,7 @@ class RecommendController(private val productService: ProductService) {
         model.addAttribute("selectedSort", sort)
         model.addAttribute("productsWithEfficiency", sortedProducts)
         model.addAttribute("totalProducts", sortedProducts.size)
-        model.addAttribute("favoriteProducts", profile.favoriteProducts)
+        model.addAttribute("favoriteProducts", user.favoriteProducts.map { it.name })
         return "search"
     }
 
@@ -303,8 +301,8 @@ class RecommendController(private val productService: ProductService) {
             return "redirect:/meal-planner?error=no_requirements"
         }
         val setsCount = minOf(maxSets, 10)
-        val profile = getProfile(session)
-        val mealSets = generateBalancedSetsFast(requirements, setsCount, profile)
+        val user = getCurrentUser()
+        val mealSets = generateBalancedSetsFast(requirements, setsCount, user)
         model.addAttribute("mealSets", mealSets)
         model.addAttribute("requirements", requirements)
         model.addAttribute("nutrientList", productService.getAllNutrientNames())
@@ -315,16 +313,17 @@ class RecommendController(private val productService: ProductService) {
     private fun generateBalancedSetsFast(
         requirements: List<RequirementDto>,
         setsCount: Int,
-        profile: UserProfile
+        user: UserEntity
     ): List<MealSetDto> {
+        val bannedProductNames = user.bannedProducts.map { it.name }.toSet()
         var availableProducts = productService.searchProducts("", null)
-            .filter { !profile.bannedProducts.contains(it.name) }
+            .filter { it.name !in bannedProductNames }
             .toMutableList()
         val resultSets = mutableListOf<MealSetDto>()
 
         for (setIndex in 0 until setsCount) {
             val setItems = mutableListOf<MealItem>()
-            val usedProductsInSet = mutableSetOf<Product>()
+            val usedProductsInSet = mutableSetOf<ProductEntity>()
             val usedCategoriesInSet = mutableSetOf<String>()
             var setValid = true
 

@@ -5,14 +5,30 @@ spring:
     cache: false
     prefix: classpath:/templates/
     suffix: .html
-
+  datasource:
+    url: jdbc:postgresql://localhost:5432/nutrilogic
+    username: nutrilogic_user
+    password: your_password_here
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+  liquibase:
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
+    enabled: true
   security:
     oauth2:
       client:
         registration:
           github:
-            client-id: Ov23liLfJfdXxzlmoWNL
-            client-secret: ec860d8057657a6ad32b35f000b7fecbdd6fb8aa
+            client-id: Ov23liJeaJnLLgSj48Xx
+            client-secret: 08a83388240db2aa789217e3c752404d06045f03
             scope: read:user, user:email
 
 server:

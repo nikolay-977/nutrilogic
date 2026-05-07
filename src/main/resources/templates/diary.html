@@ -60,10 +60,11 @@
                     </div>
                 </form>
 
-                <div th:each="entry : ${entry.meals}">
-                    <h6 th:text="|${entry.key == 'breakfast' ? '🍳 Завтрак' : (entry.key == 'lunch' ? '🍲 Обед' : (entry.key == 'dinner' ? '🍽️ Ужин' : '🥨 Перекус'))}|"></h6>
+                <!-- ИСПРАВЛЕННАЯ ЧАСТЬ: используем ${meals}, а не ${entry.meals} -->
+                <div th:each="mealEntry : ${meals}" th:with="mealTypeName=${mealEntry.key}">
+                    <h6 th:text="${mealTypeName == 'breakfast' ? '🍳 Завтрак' : (mealTypeName == 'lunch' ? '🍲 Обед' : (mealTypeName == 'dinner' ? '🍽️ Ужин' : '🥨 Перекус'))}"></h6>
                     <ul class="list-group mb-3">
-                        <li th:each="item, stat : ${entry.value}" class="list-group-item d-flex justify-content-between align-items-center">
+                        <li th:each="item, stat : ${mealEntry.value}" class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
                                 <strong th:text="${item.product.name}"></strong> —
                                 <span th:text="${item.quantity}"></span> г,
@@ -71,7 +72,7 @@
                             </div>
                             <form action="/diary/remove" method="post" class="m-0">
                                 <input type="hidden" name="date" th:value="${date}">
-                                <input type="hidden" name="mealType" th:value="${entry.key}">
+                                <input type="hidden" name="mealType" th:value="${mealEntry.key}">
                                 <input type="hidden" name="index" th:value="${stat.index}">
                                 <button type="submit" class="btn btn-sm btn-danger">✖</button>
                             </form>
@@ -79,7 +80,11 @@
                     </ul>
                 </div>
 
-                <div th:unless="${entry.meals.empty}" class="text-end">
+                <div th:if="${#maps.isEmpty(meals)}" class="text-center text-muted">
+                    Нет записей за этот день.
+                </div>
+
+                <div th:unless="${#maps.isEmpty(meals)}" class="text-end">
                     <form action="/diary/clear-day" method="post">
                         <input type="hidden" name="date" th:value="${date}">
                         <button type="submit" class="btn btn-sm btn-outline-danger">Очистить день</button>

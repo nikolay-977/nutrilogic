@@ -1,15 +1,22 @@
 package com.example.nutrilogic.controller
 
-import com.example.nutrilogic.model.*
+import com.example.nutrilogic.entity.UserEntity
+import com.example.nutrilogic.service.DiaryService
 import com.example.nutrilogic.service.ProductService
-import jakarta.servlet.http.HttpSession
+import com.example.nutrilogic.service.UserService
+import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.oauth2.core.user.OAuth2User
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.web.bind.annotation.*
 import java.time.LocalDate
 
 @Controller
-class UserController(private val productService: ProductService) {
+class UserController(
+    private val userService: UserService,
+    private val diaryService: DiaryService,
+    private val productService: ProductService   // ← добавлена зависимость
+) {
 
     data class NutrientProgress(
         val name: String,
@@ -24,36 +31,22 @@ class UserController(private val productService: ProductService) {
         var statusText: String = ""
     )
 
+    private fun getCurrentUser(): UserEntity {
+        val authentication = SecurityContextHolder.getContext().authentication
+        val principal = authentication.principal as OAuth2User
+        val githubId = principal.getAttribute<Any>("id").toString().toString()
+        return userService.getUserByGithubId(githubId)
+            ?: throw IllegalStateException("User not found in DB")
+    }
+
     private fun parseDate(dateStr: String?): LocalDate {
         return if (dateStr != null && dateStr.isNotBlank()) LocalDate.parse(dateStr) else LocalDate.now()
     }
 
-    private fun getProfile(session: HttpSession): UserProfile {
-        var profile = session.getAttribute("userProfile") as? UserProfile
-        if (profile == null) {
-            profile = UserProfile().apply {
-                name = "Гость"
-                gender = "other"
-                birthDate = null
-                height = 0.0
-                weight = 0.0
-                activityLevel = "moderate"
-                targetCalories = 2000.0
-                targetProtein = 120.0
-                targetFat = 70.0
-                targetCarbs = 250.0
-                customTargets = mutableMapOf()
-                favoriteProducts = mutableSetOf()
-                bannedProducts = mutableSetOf()
-            }
-            session.setAttribute("userProfile", profile)
-        }
-        return profile
-    }
-
     @GetMapping("/profile")
-    fun profilePage(model: Model, session: HttpSession): String {
-        model.addAttribute("profile", getProfile(session))
+    fun profilePage(model: Model): String {
+        val user = getCurrentUser()
+        model.addAttribute("profile", user)
         return "profile"
     }
 
@@ -68,51 +61,55 @@ class UserController(private val productService: ProductService) {
         @RequestParam targetCalories: Double,
         @RequestParam targetProtein: Double,
         @RequestParam targetFat: Double,
-        @RequestParam targetCarbs: Double,
-        session: HttpSession
+        @RequestParam targetCarbs: Double
     ): String {
-        val birth = if (birthDate.isNotBlank()) LocalDate.parse(birthDate) else null
-        val profile = getProfile(session)
-        profile.name = name
-        profile.gender = gender
-        profile.birthDate = birth
-        profile.height = height
-        profile.weight = weight
-        profile.activityLevel = activityLevel
-        profile.targetCalories = targetCalories
-        profile.targetProtein = targetProtein
-        profile.targetFat = targetFat
-        profile.targetCarbs = targetCarbs
-        session.setAttribute("userProfile", profile)
+        val user = getCurrentUser()
+        user.name = name
+        user.gender = gender
+        user.birthDate = if (birthDate.isNotBlank()) LocalDate.parse(birthDate) else null
+        user.height = height
+        user.weight = weight
+        user.activityLevel = activityLevel
+        user.targetCalories = targetCalories
+        user.targetProtein = targetProtein
+        user.targetFat = targetFat
+        user.targetCarbs = targetCarbs
+        userService.updateUser(user)
         return "redirect:/profile"
     }
 
     @GetMapping("/dashboard")
-    fun dashboard(model: Model, session: HttpSession): String {
-        val profile = getProfile(session)
+    fun dashboard(model: Model): String {
+        val user = getCurrentUser()
         val today = LocalDate.now()
-        val diary = session.getAttribute("diary") as? MutableMap<LocalDate, DiaryEntry> ?: mutableMapOf()
-        val todayEntry = diary[today] ?: DiaryEntry(today)
+        val diaryEntry = diaryService.getDiaryEntry(user, today)
+
+        // Суммируем нутриенты за день
+        val totalCalories = diaryEntry.consumedProducts.sumOf { it.calories }
+        val totalProtein = diaryEntry.consumedProducts.sumOf { it.nutrients["Белки"] ?: 0.0 }
+        val totalFat = diaryEntry.consumedProducts.sumOf { it.nutrients["Жиры"] ?: 0.0 }
+        val totalCarbs = diaryEntry.consumedProducts.sumOf { it.nutrients["Углеводы"] ?: 0.0 }
 
         val totals = mapOf(
-            "calories" to todayEntry.totalCalories(),
-            "protein" to todayEntry.totalNutrient("Белки"),
-            "fat" to todayEntry.totalNutrient("Жиры"),
-            "carbs" to todayEntry.totalNutrient("Углеводы")
+            "calories" to totalCalories,
+            "protein" to totalProtein,
+            "fat" to totalFat,
+            "carbs" to totalCarbs
         )
 
         val allNutrients = mutableListOf<NutrientProgress>()
+        allNutrients.add(NutrientProgress("Калории", user.targetCalories, totals["calories"] ?: 0.0, "ккал", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
+        allNutrients.add(NutrientProgress("Белки", user.targetProtein, totals["protein"] ?: 0.0, "г", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
+        allNutrients.add(NutrientProgress("Жиры", user.targetFat, totals["fat"] ?: 0.0, "г", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
+        allNutrients.add(NutrientProgress("Углеводы", user.targetCarbs, totals["carbs"] ?: 0.0, "г", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
 
-        allNutrients.add(NutrientProgress("Калории", profile.targetCalories, totals["calories"] ?: 0.0, "ккал", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
-        allNutrients.add(NutrientProgress("Белки", profile.targetProtein, totals["protein"] ?: 0.0, "г", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
-        allNutrients.add(NutrientProgress("Жиры", profile.targetFat, totals["fat"] ?: 0.0, "г", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
-        allNutrients.add(NutrientProgress("Углеводы", profile.targetCarbs, totals["carbs"] ?: 0.0, "г", isCustom = false, minNorm = 0.0, maxNorm = 0.0))
-
-        profile.customTargets.forEach { (name, norms) ->
+        // Произвольные цели пользователя
+        val customTargets = userService.getCustomTargets(user)
+        customTargets.forEach { (name, norms) ->
             val target = norms.first
             val minNorm = norms.second
             val maxNorm = norms.third
-            val consumed = todayEntry.totalNutrient(name)
+            val consumed = diaryEntry.consumedProducts.sumOf { it.nutrients[name] ?: 0.0 }
             allNutrients.add(NutrientProgress(name, target, consumed, "мг", isCustom = true, minNorm = minNorm, maxNorm = maxNorm))
         }
 
@@ -127,7 +124,7 @@ class UserController(private val productService: ProductService) {
             nutrient.copy(progressPercent = progressPercent, colorClass = colorClass, statusText = statusText)
         }
 
-        model.addAttribute("profile", profile)
+        model.addAttribute("profile", user)
         model.addAttribute("nutrients", nutrientsWithStatus)
         return "dashboard"
     }
@@ -135,22 +132,24 @@ class UserController(private val productService: ProductService) {
     @GetMapping("/diary")
     fun diaryPage(
         @RequestParam(value = "date", required = false) dateStr: String?,
-        model: Model,
-        session: HttpSession
+        model: Model
     ): String {
-        val profile = getProfile(session)
+        val user = getCurrentUser()
         val date = parseDate(dateStr)
-        val diary = session.getAttribute("diary") as? MutableMap<LocalDate, DiaryEntry> ?: mutableMapOf()
-        val entry = diary[date] ?: DiaryEntry(date)
+        val diaryEntry = diaryService.getDiaryEntry(user, date)
+        val meals = diaryEntry.consumedProducts.groupBy { it.mealType }
 
-        val allProducts = productService.searchProducts("", null)
-        val filteredProducts = allProducts.filter { !profile.bannedProducts.contains(it.name) }
-        val (favProducts, otherProducts) = filteredProducts.partition { profile.favoriteProducts.contains(it.name) }
+        // Все продукты (без учёта бан-листа — фильтруем на уровне сервиса или тут)
+        val allProducts = productService.searchProducts("", null) // нужно внедрить ProductService
+        val bannedProductNames = user.bannedProducts.map { it.name }.toSet()
+        val filteredProducts = allProducts.filter { it.name !in bannedProductNames }
+        val favoriteProductNames = user.favoriteProducts.map { it.name }.toSet()
+        val (favProducts, otherProducts) = filteredProducts.partition { it.name in favoriteProductNames }
         val sortedProducts = favProducts + otherProducts
 
         model.addAttribute("date", date)
-        model.addAttribute("entry", entry)
-        model.addAttribute("profile", profile)
+        model.addAttribute("meals", meals)  // нужно преобразовать в DTO или использовать готовую модель
+        model.addAttribute("profile", user)
         model.addAttribute("allProducts", sortedProducts)
         return "diary"
     }
@@ -160,42 +159,11 @@ class UserController(private val productService: ProductService) {
         @RequestParam productId: String,
         @RequestParam quantity: Double,
         @RequestParam mealType: String,
-        @RequestParam date: String,
-        session: HttpSession
+        @RequestParam date: String
     ): String {
-        val profile = getProfile(session)
+        val user = getCurrentUser()
         val entryDate = parseDate(date)
-        val product = productService.searchProducts(productId, null).firstOrNull()
-            ?: return "redirect:/diary?date=$date&error=notfound"
-
-        val factor = quantity / 100.0
-        val nutrientsMap = mutableMapOf<String, Double>()
-
-        // Основные нутриенты (обязательные)
-        nutrientsMap["Калории"] = (product.getCalories() ?: 0.0) * factor
-        nutrientsMap["Белки"] = (product.getNutrientValue("Белки") ?: 0.0) * factor
-        nutrientsMap["Жиры"] = (product.getNutrientValue("Жиры") ?: 0.0) * factor
-        nutrientsMap["Углеводы"] = (product.getNutrientValue("Углеводы") ?: 0.0) * factor
-
-        // Произвольные нутриенты (витамины, минералы) из профиля пользователя
-        profile.customTargets.keys.forEach { nutrientName ->
-            val value = product.getNutrientValue(nutrientName) ?: 0.0
-            nutrientsMap[nutrientName] = value * factor
-        }
-
-        val consumed = ConsumedProduct(
-            product = product,
-            quantity = quantity,
-            mealType = mealType,
-            calories = nutrientsMap["Калории"] ?: 0.0,
-            nutrients = nutrientsMap
-        )
-
-        val diary = session.getAttribute("diary") as? MutableMap<LocalDate, DiaryEntry> ?: mutableMapOf()
-        val entry = diary[entryDate] ?: DiaryEntry(entryDate)
-        entry.meals.getOrPut(mealType) { mutableListOf() }.add(consumed)
-        diary[entryDate] = entry
-        session.setAttribute("diary", diary)
+        diaryService.addConsumedProduct(user, entryDate, productId, quantity, mealType)
         return "redirect:/diary?date=$date"
     }
 
@@ -203,49 +171,46 @@ class UserController(private val productService: ProductService) {
     fun removeProductFromDiary(
         @RequestParam date: String,
         @RequestParam mealType: String,
-        @RequestParam index: Int,
-        session: HttpSession
+        @RequestParam index: Int
     ): String {
+        val user = getCurrentUser()
         val entryDate = parseDate(date)
-        val diary = session.getAttribute("diary") as? MutableMap<LocalDate, DiaryEntry> ?: mutableMapOf()
-        val entry = diary[entryDate] ?: return "redirect:/diary?date=$date"
-        entry.meals[mealType]?.removeAt(index)
-        if (entry.meals[mealType].isNullOrEmpty()) entry.meals.remove(mealType)
-        diary[entryDate] = entry
-        session.setAttribute("diary", diary)
+        val diaryEntry = diaryService.getDiaryEntry(user, entryDate)
+        // В consumedProducts порядок соответствует списку; получаем конкретный consumed продукт
+        val consumedList = diaryEntry.consumedProducts.filter { it.mealType == mealType }
+        if (index in consumedList.indices) {
+            diaryService.removeConsumedProduct(consumedList[index].id)
+        }
         return "redirect:/diary?date=$date"
     }
 
     @PostMapping("/diary/clear-day")
-    fun clearDay(@RequestParam date: String, session: HttpSession): String {
+    fun clearDay(@RequestParam date: String): String {
+        val user = getCurrentUser()
         val entryDate = parseDate(date)
-        val diary = session.getAttribute("diary") as? MutableMap<LocalDate, DiaryEntry> ?: mutableMapOf()
-        diary.remove(entryDate)
-        session.setAttribute("diary", diary)
+        diaryService.clearDiaryDay(user, entryDate)
         return "redirect:/diary?date=$date"
     }
 
     @GetMapping("/profile/preferences")
-    fun preferencesPage(model: Model, session: HttpSession): String {
-        val profile = getProfile(session)
-        model.addAttribute("favoriteProducts", profile.favoriteProducts.toList())
-        model.addAttribute("bannedProducts", profile.bannedProducts.toList())
+    fun preferencesPage(model: Model): String {
+        val user = getCurrentUser()
+        model.addAttribute("favoriteProducts", user.favoriteProducts.map { it.name })
+        model.addAttribute("bannedProducts", user.bannedProducts.map { it.name })
         return "preferences"
     }
 
     @PostMapping("/profile/remove-favorite")
-    fun removeFavorite(@RequestParam productName: String, session: HttpSession): String {
-        val profile = getProfile(session)
-        profile.favoriteProducts.remove(productName)
-        session.setAttribute("userProfile", profile)
+    fun removeFavorite(@RequestParam productName: String): String {
+        val user = getCurrentUser()
+        userService.removeFavoriteProduct(user, productName)
         return "redirect:/profile/preferences"
     }
 
     @PostMapping("/profile/remove-banned")
-    fun removeBanned(@RequestParam productName: String, session: HttpSession): String {
-        val profile = getProfile(session)
-        profile.bannedProducts.remove(productName)
-        session.setAttribute("userProfile", profile)
+    fun removeBanned(@RequestParam productName: String): String {
+        val user = getCurrentUser()
+        userService.removeBannedProduct(user, productName)
         return "redirect:/profile/preferences"
     }
 
@@ -254,22 +219,19 @@ class UserController(private val productService: ProductService) {
         @RequestParam nutrientName: String,
         @RequestParam targetNorm: Double,
         @RequestParam minNorm: Double,
-        @RequestParam maxNorm: Double,
-        session: HttpSession
+        @RequestParam maxNorm: Double
     ): String {
         if (nutrientName.isNotBlank() && targetNorm > 0) {
-            val profile = getProfile(session)
-            profile.customTargets[nutrientName] = Triple(targetNorm, minNorm, maxNorm)
-            session.setAttribute("userProfile", profile)
+            val user = getCurrentUser()
+            userService.addCustomTarget(user, nutrientName, targetNorm, minNorm, maxNorm)
         }
         return "redirect:/dashboard"
     }
 
     @PostMapping("/dashboard/remove-custom-target")
-    fun removeCustomTargetFromDashboard(@RequestParam nutrientName: String, session: HttpSession): String {
-        val profile = getProfile(session)
-        profile.customTargets.remove(nutrientName)
-        session.setAttribute("userProfile", profile)
+    fun removeCustomTargetFromDashboard(@RequestParam nutrientName: String): String {
+        val user = getCurrentUser()
+        userService.removeCustomTarget(user, nutrientName)
         return "redirect:/dashboard"
     }
 }
