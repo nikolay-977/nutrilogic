@@ -6,7 +6,7 @@ spring:
     prefix: classpath:/templates/
     suffix: .html
   datasource:
-    url: jdbc:postgresql://localhost:5432/nutrilogic
+    url: jdbc:postgresql://postgres:5432/nutrilogic
     username: nutrilogic_user
     password: your_password_here
     driver-class-name: org.postgresql.Driver
